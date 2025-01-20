@@ -5,57 +5,200 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Lilypad Module Generator</title>
     <link href="https://cdn.tailwindcss.com" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 </head>
 <body class="bg-gray-100">
-    <div class="container mx-auto px-4 py-8 max-w-2xl">
+    <div class="container mx-auto px-4 py-8 max-w-4xl">
         <h1 class="text-3xl font-bold text-center mb-8">Lilypad Module Generator</h1>
         
         <!-- Input Form -->
         <div class="bg-white rounded-lg shadow-md p-6 mb-8">
             <h2 class="text-lg font-semibold mb-4">Generate Lilypad Module</h2>
-            <form action="/generate" method="POST">
+            <form id="generate-form" onsubmit="return handleSubmit(event)">
                 <div class="mb-4">
                     <label for="model_url" class="block text-sm font-medium text-gray-700 mb-2">
                         Hugging Face Model URL
                     </label>
-                    <input type="text" 
-                           id="model_url" 
-                           name="model_url"
-                           class="w-full p-2 border border-gray-300 rounded-md"
-                           placeholder="https://huggingface.co/microsoft/resnet-50"
-                           required>
+                    <div class="flex gap-4">
+                        <input type="text" 
+                               id="model_url" 
+                               name="model_url"
+                               class="flex-1 p-2 border border-gray-300 rounded-md"
+                               placeholder="https://huggingface.co/microsoft/resnet-50"
+                               oninput="validateInput(event)"
+                               required>
+                        <button type="submit" 
+                                class="bg-blue-500 text-white py-2 px-6 rounded-md hover:bg-blue-600 transition-colors">
+                            Generate
+                        </button>
+                    </div>
+                    <p id="url-error" class="mt-2 text-red-500 text-sm hidden"></p>
                 </div>
-                <button type="submit" 
-                        class="w-full bg-blue-500 text-white py-2 px-4 rounded-md hover:bg-blue-600 transition-colors">
-                    Generate Module Files
-                </button>
             </form>
+        </div>
+
+        <!-- Model Information -->
+        <div id="model-info" class="bg-white rounded-lg shadow-md p-6 mb-8 hidden">
+            <h2 class="text-lg font-semibold mb-4">Model Information</h2>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <p class="text-sm text-gray-600">Model Type</p>
+                    <p id="model-type" class="font-medium"></p>
+                </div>
+                <div>
+                    <p class="text-sm text-gray-600">Input Format</p>
+                    <p id="input-format" class="font-medium"></p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Generated Files Preview -->
+        <div id="files-preview" class="bg-white rounded-lg shadow-md p-6 mb-8 hidden">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-lg font-semibold">Generated Files</h2>
+                <select id="file-selector" class="p-2 border border-gray-300 rounded-md" onchange="showFile()">
+                    <option value="README.md">README.md</option>
+                    <option value="Dockerfile">Dockerfile</option>
+                    <option value="run_inference.py">run_inference.py</option>
+                    <option value="module.yaml">module.yaml</option>
+                    <option value="requirements.txt">requirements.txt</option>
+                </select>
+            </div>
+            <div id="file-content" class="bg-gray-50 p-4 rounded-md overflow-x-auto">
+                <pre><code id="content"></code></pre>
+            </div>
         </div>
 
         <!-- Instructions -->
         <div class="bg-white rounded-lg shadow-md p-6">
-            <h2 class="text-lg font-semibold mb-4">Instructions</h2>
-            <ol class="list-decimal pl-5 space-y-2">
-                <li>Paste the Hugging Face model URL above</li>
-                <li>Click "Generate Module Files" to download the zip package</li>
-                <li>Extract the downloaded files</li>
-                <li>Follow the setup instructions in the README.md file</li>
-            </ol>
-            <div class="mt-4 p-4 bg-gray-50 rounded-md">
-                <h3 class="font-medium mb-2">Example Usage:</h3>
-                <code class="block whitespace-pre text-sm">
-# Build Docker image
+            <h2 class="text-lg font-semibold mb-4">Quick Start Guide</h2>
+            <ol class="list-decimal pl-5 space-y-4">
+                <li>
+                    <strong>Paste Model URL</strong>
+                    <p class="text-gray-600 mt-1">Copy the URL from Hugging Face and paste it above</p>
+                </li>
+                <li>
+                    <strong>Generate and Download</strong>
+                    <p class="text-gray-600 mt-1">Click Generate to download the module package</p>
+                </li>
+                <li>
+                    <strong>Setup Local Environment</strong>
+                    <div class="bg-gray-50 p-4 rounded-md mt-2">
+                        <code class="block whitespace-pre text-sm">unzip lilypad-module.zip
+cd lilypad-module</code>
+                    </div>
+                </li>
+                <li>
+                    <strong>Build and Run</strong>
+                    <div class="bg-gray-50 p-4 rounded-md mt-2">
+                        <code class="block whitespace-pre text-sm"># Build Docker image
 docker build -t my-model .
 
 # Run locally
 docker run -v $(pwd)/input:/workspace/input \
           -e INPUT_PATH=/workspace/input/input.txt \
-          my-model
-
-# Deploy to Lilypad
-lilypad module deploy .</code>
-            </div>
+          my-model</code>
+                    </div>
+                </li>
+                <li>
+                    <strong>Deploy to Lilypad</strong>
+                    <div class="bg-gray-50 p-4 rounded-md mt-2">
+                        <code class="block whitespace-pre text-sm">lilypad module deploy .</code>
+                    </div>
+                </li>
+            </ol>
         </div>
     </div>
+
+    <script>
+        let currentFiles = {};
+
+        function validateInput(event) {
+            const url = event.target.value;
+            const error = document.getElementById('url-error');
+            
+            if (!url.startsWith('https://huggingface.co/')) {
+                error.textContent = 'Please enter a valid Hugging Face model URL';
+                error.classList.remove('hidden');
+                return false;
+            }
+            
+            error.classList.add('hidden');
+            return true;
+        }
+
+        async function handleSubmit(event) {
+            event.preventDefault();
+            
+            const form = event.target;
+            const url = form.model_url.value;
+            
+            if (!validateInput({ target: form.model_url })) {
+                return false;
+            }
+
+            try {
+                const response = await fetch('/generate', {
+                    method: 'POST',
+                    body: new FormData(form)
+                });
+
+                if (response.ok) {
+                    // Get the filename from the Content-Disposition header
+                    const contentDisposition = response.headers.get('Content-Disposition');
+                    const filename = contentDisposition.split('filename=')[1].replace(/"/g, '');
+
+                    // Convert response to blob and download
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = filename;
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    document.body.removeChild(a);
+
+                    // Show success message
+                    showSuccess();
+                } else {
+                    const error = await response.text();
+                    showError(error);
+                }
+            } catch (error) {
+                showError('An error occurred while generating the module');
+            }
+
+            return false;
+        }
+
+        function showSuccess() {
+            const modelInfo = document.getElementById('model-info');
+            const filesPreview = document.getElementById('files-preview');
+            
+            modelInfo.classList.remove('hidden');
+            filesPreview.classList.remove('hidden');
+            
+            // Show some basic info
+            document.getElementById('model-type').textContent = 'Detected from model tags';
+            document.getElementById('input-format').textContent = 'Based on model type';
+        }
+
+        function showError(message) {
+            const error = document.getElementById('url-error');
+            error.textContent = message;
+            error.classList.remove('hidden');
+        }
+
+        function showFile() {
+            const selector = document.getElementById('file-selector');
+            const content = document.getElementById('content');
+            const selectedFile = selector.value;
+            
+            // In a full implementation, we would store the file contents
+            // For now, show a placeholder
+            content.textContent = `Content of ${selectedFile} would be shown here`;
+        }
+    </script>
 </body>
 </html>
