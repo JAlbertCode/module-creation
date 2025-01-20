@@ -2,37 +2,38 @@
 
 This repository contains a generalized image classification module that can deploy and run various Hugging Face image classification models on Lilypad.
 
-## Setup Checklist
+## Features
 
-- [x] Create basic repository structure
-  - [x] Create Dockerfile
-  - [x] Create requirements.txt
-  - [x] Create run_inference.py script
-  - [x] Create module.yaml for Lilypad configuration
-  
-- [x] Implement core functionality
-  - [x] Add image loading and preprocessing
-  - [x] Add model loading from Hugging Face
-  - [x] Add inference pipeline
-  - [x] Add proper error handling
-  - [x] Add output formatting
-  
-- [x] Add support for common image models
-  - [x] ResNet support
-  - [x] ViT support
-  - [x] DeiT support
-  - [x] ConvNeXT support
-  
-- [x] Create documentation
-  - [x] Add usage examples
-  - [x] Add API documentation
-  - [x] Add troubleshooting guide
-  
-- [x] Testing
-  - [x] Test with different image formats
-  - [x] Test with different model architectures
-  - [x] Test error cases
-  - [x] Test on Lilypad network
+- [x] Web Interface for Model Deployment
+  - [x] Paste Hugging Face model URL
+  - [x] Generated files preview
+  - [x] Download packaged module
+  - [x] Setup instructions
+
+- [x] Performance Monitoring
+  - [x] Real-time metrics tracking
+  - [x] Interactive dashboards
+  - [x] Cost analysis
+  - [x] Resource usage monitoring
+  - [x] Automated recommendations
+
+- [x] Model Support
+  - [x] Image classification models
+  - [x] Text classification models
+  - [x] Object detection models
+  - [x] Multi-modal models
+
+- [x] Deployment Support
+  - [x] Docker containerization
+  - [x] Lilypad integration
+  - [x] Resource optimization
+  - [x] Error handling
+
+- [x] Testing & Validation
+  - [x] Automated testing
+  - [x] Performance benchmarking
+  - [x] Configuration validation
+  - [x] Integration testing
 
 ## Setup Instructions
 
@@ -50,98 +51,50 @@ This repository contains a generalized image classification module that can depl
    pip install -r requirements.txt
    ```
 
-2. Testing the Module:
+2. Start the web interface:
    ```bash
-   # Run the test suite
-   python run_tests.py
-   
-   # View test logs
-   cat test_logs/test_run_*.log
-   
-   # Run Lilypad integration tests
-   python -m pytest tests/test_lilypad_integration.py
+   python server.py
    ```
 
-3. Build the Docker image:
-   ```bash
-   docker build -t image-classification .
-   ```
-
-4. Run locally for testing:
-   ```bash
-   docker run -e MODEL_ID=microsoft/resnet-50 -e INPUT_PATH=/path/to/image.jpg image-classification
-   ```
-
-5. Deploy to Lilypad:
-   ```bash
-   lilypad module deploy .
-   ```
+3. Access the interfaces:
+   - Main interface: http://localhost:5000
+   - Monitoring dashboard: http://localhost:5000/monitor
 
 ## Usage
 
-To use this module, you'll need to:
+1. Model Deployment:
+   - Visit the main interface
+   - Paste a Hugging Face model URL
+   - Preview generated files
+   - Download the packaged module
+   - Follow provided setup instructions
 
-1. Prepare your image file
-2. Choose a Hugging Face image classification model
-3. Set up the required environment variables:
-   - `MODEL_ID`: The Hugging Face model ID (e.g., "microsoft/resnet-50")
-   - `INPUT_PATH`: Path to the input image
-   - `OUTPUT_PATH`: (Optional) Path where results should be saved
+2. Performance Monitoring:
+   - Visit the monitoring dashboard
+   - Select a model to monitor
+   - View real-time metrics
+   - Analyze performance trends
+   - Review recommendations
 
-## Expected Input Format
+## Monitoring Features
 
-- Supported image formats: JPG, PNG, WebP
-- Maximum image size: 1024x1024 pixels (larger images will be automatically resized)
-- Images should be in RGB format
+- Real-time metrics tracking
+- Performance visualization
+- Resource usage analysis
+- Cost estimation
+- Trend analysis
+- Automated recommendations
+- Event tracking
+- Custom alerts
 
-## Output Format
+## Benchmark Reports
 
-The module will output a JSON file containing:
-```json
-{
-    "model_id": "microsoft/resnet-50",
-    "predictions": [
-        {
-            "label": "predicted_class",
-            "score": 0.95
-        }
-    ],
-    "status": "success",
-    "processing_time": "1.23s"
-}
-```
-
-## Testing
-
-The module includes comprehensive tests:
-- Image format support (JPG, PNG, WebP)
-- Model architecture compatibility
-- Error handling scenarios
-- Resource requirement validation
-- Lilypad network integration
-
-Run the test suite using:
-```bash
-python run_tests.py
-```
-
-Test logs are stored in the `test_logs` directory.
-
-## Continuous Integration
-
-The repository includes GitHub Actions workflows for:
-- Automated testing
-- Code coverage reporting
-- Integration testing with Lilypad network
-
-## Error Handling
-
-The module includes robust error handling for:
-- Invalid image formats
-- Network issues during model download
-- Memory constraints
-- Invalid model architectures
-- Lilypad deployment issues
+The system generates comprehensive benchmark reports including:
+- Throughput metrics
+- Latency analysis
+- Resource utilization
+- Cost analysis
+- Optimization recommendations
 
 ## Contributing
 
@@ -150,3 +103,11 @@ Contributions are welcome! Please read the contributing guidelines before submit
 ## License
 
 MIT License - See LICENSE file for details
+
+## Roadmap
+
+- [ ] Add support for more model architectures
+- [ ] Implement automated scaling
+- [ ] Add alert/notification system
+- [ ] Enhance visualization options
+- [ ] Add batch processing support
