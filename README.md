@@ -4,29 +4,29 @@ This repository contains a generalized image classification module that can depl
 
 ## Setup Checklist
 
-- [ ] Create basic repository structure
-  - [ ] Create Dockerfile
-  - [ ] Create requirements.txt
-  - [ ] Create run_inference.py script
-  - [ ] Create module.yaml for Lilypad configuration
+- [x] Create basic repository structure
+  - [x] Create Dockerfile
+  - [x] Create requirements.txt
+  - [x] Create run_inference.py script
+  - [x] Create module.yaml for Lilypad configuration
   
-- [ ] Implement core functionality
-  - [ ] Add image loading and preprocessing
-  - [ ] Add model loading from Hugging Face
-  - [ ] Add inference pipeline
-  - [ ] Add proper error handling
-  - [ ] Add output formatting
+- [x] Implement core functionality
+  - [x] Add image loading and preprocessing
+  - [x] Add model loading from Hugging Face
+  - [x] Add inference pipeline
+  - [x] Add proper error handling
+  - [x] Add output formatting
   
-- [ ] Add support for common image models
-  - [ ] ResNet support
-  - [ ] ViT support
-  - [ ] DeiT support
-  - [ ] ConvNeXT support
+- [x] Add support for common image models
+  - [x] ResNet support
+  - [x] ViT support
+  - [x] DeiT support
+  - [x] ConvNeXT support
   
-- [ ] Create documentation
-  - [ ] Add usage examples
-  - [ ] Add API documentation
-  - [ ] Add troubleshooting guide
+- [x] Create documentation
+  - [x] Add usage examples
+  - [x] Add API documentation
+  - [x] Add troubleshooting guide
   
 - [ ] Testing
   - [ ] Test with different image formats
