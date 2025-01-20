@@ -32,7 +32,7 @@ This repository contains a generalized image classification module that can depl
   - [x] Test with different image formats
   - [x] Test with different model architectures
   - [x] Test error cases
-  - [ ] Test on Lilypad network
+  - [x] Test on Lilypad network
 
 ## Setup Instructions
 
@@ -57,6 +57,9 @@ This repository contains a generalized image classification module that can depl
    
    # View test logs
    cat test_logs/test_run_*.log
+   
+   # Run Lilypad integration tests
+   python -m pytest tests/test_lilypad_integration.py
    ```
 
 3. Build the Docker image:
@@ -115,6 +118,7 @@ The module includes comprehensive tests:
 - Model architecture compatibility
 - Error handling scenarios
 - Resource requirement validation
+- Lilypad network integration
 
 Run the test suite using:
 ```bash
@@ -123,6 +127,13 @@ python run_tests.py
 
 Test logs are stored in the `test_logs` directory.
 
+## Continuous Integration
+
+The repository includes GitHub Actions workflows for:
+- Automated testing
+- Code coverage reporting
+- Integration testing with Lilypad network
+
 ## Error Handling
 
 The module includes robust error handling for:
@@ -130,6 +141,7 @@ The module includes robust error handling for:
 - Network issues during model download
 - Memory constraints
 - Invalid model architectures
+- Lilypad deployment issues
 
 ## Contributing
 
