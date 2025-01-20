@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lilypad Module Generator</title>
+    <link href="https://cdn.tailwindcss.com" rel="stylesheet">
+</head>
+<body class="bg-gray-100">
+    <div class="container mx-auto px-4 py-8 max-w-2xl">
+        <h1 class="text-3xl font-bold text-center mb-8">Lilypad Module Generator</h1>
+        
+        <!-- Input Form -->
+        <div class="bg-white rounded-lg shadow-md p-6 mb-8">
+            <h2 class="text-lg font-semibold mb-4">Generate Lilypad Module</h2>
+            <form action="/generate" method="POST">
+                <div class="mb-4">
+                    <label for="model_url" class="block text-sm font-medium text-gray-700 mb-2">
+                        Hugging Face Model URL
+                    </label>
+                    <input type="text" 
+                           id="model_url" 
+                           name="model_url"
+                           class="w-full p-2 border border-gray-300 rounded-md"
+                           placeholder="https://huggingface.co/microsoft/resnet-50"
+                           required>
+                </div>
+                <button type="submit" 
+                        class="w-full bg-blue-500 text-white py-2 px-4 rounded-md hover:bg-blue-600 transition-colors">
+                    Generate Module Files
+                </button>
+            </form>
+        </div>
+
+        <!-- Instructions -->
+        <div class="bg-white rounded-lg shadow-md p-6">
+            <h2 class="text-lg font-semibold mb-4">Instructions</h2>
+            <ol class="list-decimal pl-5 space-y-2">
+                <li>Paste the Hugging Face model URL above</li>
+                <li>Click "Generate Module Files" to download the zip package</li>
+                <li>Extract the downloaded files</li>
+                <li>Follow the setup instructions in the README.md file</li>
+            </ol>
+            <div class="mt-4 p-4 bg-gray-50 rounded-md">
+                <h3 class="font-medium mb-2">Example Usage:</h3>
+                <code class="block whitespace-pre text-sm">
+# Build Docker image
+docker build -t my-model .
+
+# Run locally
+docker run -v $(pwd)/input:/workspace/input \
+          -e INPUT_PATH=/workspace/input/input.txt \
+          my-model
+
+# Deploy to Lilypad
+lilypad module deploy .</code>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
