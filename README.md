@@ -28,10 +28,10 @@ This repository contains a generalized image classification module that can depl
   - [x] Add API documentation
   - [x] Add troubleshooting guide
   
-- [ ] Testing
-  - [ ] Test with different image formats
-  - [ ] Test with different model architectures
-  - [ ] Test error cases
+- [x] Testing
+  - [x] Test with different image formats
+  - [x] Test with different model architectures
+  - [x] Test error cases
   - [ ] Test on Lilypad network
 
 ## Setup Instructions
@@ -50,10 +50,14 @@ This repository contains a generalized image classification module that can depl
    pip install -r requirements.txt
    ```
 
-2. Prepare your environment:
-   - Ensure you have Docker installed
-   - Have your Lilypad network credentials ready
-   - Have the Hugging Face model ID you want to use
+2. Testing the Module:
+   ```bash
+   # Run the test suite
+   python run_tests.py
+   
+   # View test logs
+   cat test_logs/test_run_*.log
+   ```
 
 3. Build the Docker image:
    ```bash
@@ -103,6 +107,21 @@ The module will output a JSON file containing:
     "processing_time": "1.23s"
 }
 ```
+
+## Testing
+
+The module includes comprehensive tests:
+- Image format support (JPG, PNG, WebP)
+- Model architecture compatibility
+- Error handling scenarios
+- Resource requirement validation
+
+Run the test suite using:
+```bash
+python run_tests.py
+```
+
+Test logs are stored in the `test_logs` directory.
 
 ## Error Handling
 
