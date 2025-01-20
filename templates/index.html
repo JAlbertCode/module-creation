@@ -5,265 +5,72 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Lilypad Module Generator</title>
     <link href="https://cdn.tailwindcss.com" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 </head>
 <body class="bg-gray-100">
-    <div class="container mx-auto px-4 py-8 max-w-4xl">
+    <div class="container mx-auto px-4 py-8 max-w-2xl">
         <h1 class="text-3xl font-bold text-center mb-8">Lilypad Module Generator</h1>
         
         <!-- Input Form -->
         <div class="bg-white rounded-lg shadow-md p-6 mb-8">
-            <h2 class="text-lg font-semibold mb-4">Generate Lilypad Module</h2>
-            <form id="generate-form" onsubmit="return handleSubmit(event)">
+            <form action="/generate" method="POST">
                 <div class="mb-4">
                     <label for="model_url" class="block text-sm font-medium text-gray-700 mb-2">
                         Hugging Face Model URL
                     </label>
-                    <div class="flex gap-4">
-                        <input type="text" 
-                               id="model_url" 
-                               name="model_url"
-                               class="flex-1 p-2 border border-gray-300 rounded-md"
-                               placeholder="https://huggingface.co/microsoft/resnet-50"
-                               oninput="handleInput(event)"
-                               required>
-                        <button type="button"
-                                onclick="previewModel()"
-                                class="bg-gray-500 text-white py-2 px-6 rounded-md hover:bg-gray-600 transition-colors">
-                            Preview
-                        </button>
-                        <button type="submit" 
-                                class="bg-blue-500 text-white py-2 px-6 rounded-md hover:bg-blue-600 transition-colors">
-                            Generate
-                        </button>
-                    </div>
+                    <input type="text" 
+                           id="model_url" 
+                           name="model_url"
+                           class="w-full p-2 border border-gray-300 rounded-md"
+                           placeholder="https://huggingface.co/microsoft/resnet-50"
+                           required>
                 </div>
-
-                <!-- Configuration Panel -->
-                <div id="config-panel" class="mt-6 hidden">
-                    <h3 class="font-medium mb-4">Module Configuration</h3>
-                    
-                    <!-- Resource Configuration -->
-                    <div class="grid grid-cols-2 gap-4 mb-6">
-                        <div>
-                            <label class="block text-sm text-gray-700 mb-1">CPU Cores</label>
-                            <select name="cpu_cores" class="w-full p-2 border rounded">
-                                <option value="1">1 Core</option>
-                                <option value="2" selected>2 Cores</option>
-                                <option value="4">4 Cores</option>
-                                <option value="8">8 Cores</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-sm text-gray-700 mb-1">Memory</label>
-                            <select name="memory" class="w-full p-2 border rounded">
-                                <option value="2Gi">2 GB</option>
-                                <option value="4Gi" selected>4 GB</option>
-                                <option value="8Gi">8 GB</option>
-                                <option value="16Gi">16 GB</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <!-- Model Configuration -->
-                    <div class="grid grid-cols-2 gap-4 mb-6">
-                        <div>
-                            <label class="block text-sm text-gray-700 mb-1">Batch Size</label>
-                            <input type="number" 
-                                   name="batch_size" 
-                                   value="1" 
-                                   min="1" 
-                                   max="32"
-                                   class="w-full p-2 border rounded">
-                        </div>
-                        <div>
-                            <label class="block text-sm text-gray-700 mb-1">GPU Support</label>
-                            <div class="flex items-center mt-2">
-                                <input type="checkbox" 
-                                       name="use_gpu" 
-                                       id="use_gpu"
-                                       class="mr-2">
-                                <label for="use_gpu">Enable GPU support</label>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Advanced Configuration -->
-                    <div id="advanced-config" class="hidden">
-                        <div class="border-t pt-4">
-                            <h4 class="font-medium mb-4">Advanced Settings</h4>
-                            <div class="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label class="block text-sm text-gray-700 mb-1">Max Sequence Length</label>
-                                    <input type="number" 
-                                           name="max_length" 
-                                           value="512" 
-                                           class="w-full p-2 border rounded">
-                                </div>
-                                <div>
-                                    <label class="block text-sm text-gray-700 mb-1">Image Size</label>
-                                    <input type="text" 
-                                           name="image_size" 
-                                           value="224,224" 
-                                           class="w-full p-2 border rounded"
-                                           placeholder="width,height">
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="mt-4">
-                        <button type="button" 
-                                onclick="toggleAdvanced()"
-                                class="text-blue-500 text-sm hover:text-blue-700">
-                            Show Advanced Settings
-                        </button>
-                    </div>
-                </div>
+                <button type="submit" 
+                        class="w-full bg-blue-500 text-white py-2 px-4 rounded-md hover:bg-blue-600 transition-colors">
+                    Generate Module Files
+                </button>
             </form>
-        </div>
-
-        <!-- Model Preview -->
-        <div id="model-preview" class="bg-white rounded-lg shadow-md p-6 mb-8 hidden">
-            <!-- Previous model preview content -->
-        </div>
-
-        <!-- Generated Files Preview -->
-        <div id="files-preview" class="bg-white rounded-lg shadow-md p-6 mb-8 hidden">
-            <!-- Previous files preview content -->
         </div>
 
         <!-- Instructions -->
         <div class="bg-white rounded-lg shadow-md p-6">
-            <!-- Previous instructions content -->
+            <h2 class="text-lg font-semibold mb-4">Instructions</h2>
+            <ol class="list-decimal pl-5 space-y-4">
+                <li>
+                    <strong>Get Model URL</strong>
+                    <p class="text-gray-600 mt-1">Copy the URL from Hugging Face (e.g., https://huggingface.co/microsoft/resnet-50)</p>
+                </li>
+                <li>
+                    <strong>Generate Files</strong>
+                    <p class="text-gray-600 mt-1">Paste the URL and click "Generate Module Files"</p>
+                </li>
+                <li>
+                    <strong>Setup</strong>
+                    <div class="bg-gray-50 p-4 rounded-md mt-2">
+                        <code class="block whitespace-pre text-sm"># Extract the files
+unzip lilypad-module.zip
+
+# Build the Docker image
+docker build -t my-model .
+
+# Create input directory
+mkdir input
+
+# Add your input file
+# For text models: Add text file to input/
+# For image models: Add image to input/
+
+# Run locally
+docker run -v $(pwd)/input:/workspace/input \\
+          -v $(pwd)/output:/outputs \\
+          -e INPUT_PATH=/workspace/input/input.txt \\
+          my-model
+
+# Deploy to Lilypad
+lilypad module deploy .</code>
+                    </div>
+                </li>
+            </ol>
         </div>
     </div>
-
-    <script>
-        // Previous JavaScript functions remain...
-
-        async function handleInput(event) {
-            const url = event.target.value;
-            if (url.startsWith('https://huggingface.co/')) {
-                document.getElementById('config-panel').classList.remove('hidden');
-                await updateConfigDefaults(url);
-            } else {
-                document.getElementById('config-panel').classList.add('hidden');
-            }
-        }
-
-        async function updateConfigDefaults(modelUrl) {
-            try {
-                const response = await fetch('/config/defaults', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ model_url: modelUrl })
-                });
-
-                if (response.ok) {
-                    const config = await response.json();
-                    applyConfigDefaults(config);
-                }
-            } catch (error) {
-                console.error('Error loading config defaults:', error);
-            }
-        }
-
-        function applyConfigDefaults(config) {
-            // Update form fields with default values
-            document.querySelector('[name="cpu_cores"]').value = config.resources.cpu;
-            document.querySelector('[name="memory"]').value = config.resources.memory;
-            document.querySelector('[name="batch_size"]').value = config.model.batch_size;
-            document.querySelector('[name="use_gpu"]').checked = !!config.resources.gpu;
-
-            // Update advanced settings if available
-            if (config.model.max_length) {
-                document.querySelector('[name="max_length"]').value = config.model.max_length;
-            }
-            if (config.input?.preprocessing?.resize) {
-                document.querySelector('[name="image_size"]').value = 
-                    config.input.preprocessing.resize.join(',');
-            }
-
-            // Show/hide model-specific settings
-            const advancedConfig = document.getElementById('advanced-config');
-            if (config.model.type.includes('text')) {
-                advancedConfig.querySelector('[name="image_size"]').parentElement.style.display = 'none';
-                advancedConfig.querySelector('[name="max_length"]').parentElement.style.display = 'block';
-            } else if (config.model.type.includes('image')) {
-                advancedConfig.querySelector('[name="image_size"]').parentElement.style.display = 'block';
-                advancedConfig.querySelector('[name="max_length"]').parentElement.style.display = 'none';
-            }
-        }
-
-        function toggleAdvanced() {
-            const advancedSection = document.getElementById('advanced-config');
-            const isHidden = advancedSection.classList.contains('hidden');
-            advancedSection.classList.toggle('hidden');
-            const button = event.target;
-            button.textContent = isHidden ? 'Hide Advanced Settings' : 'Show Advanced Settings';
-        }
-
-        function getConfigFromForm() {
-            const form = document.getElementById('generate-form');
-            return {
-                resources: {
-                    cpu: parseInt(form.querySelector('[name="cpu_cores"]').value),
-                    memory: form.querySelector('[name="memory"]').value,
-                    gpu: form.querySelector('[name="use_gpu"]').checked ? 1 : null
-                },
-                model: {
-                    batch_size: parseInt(form.querySelector('[name="batch_size"]').value),
-                    max_length: parseInt(form.querySelector('[name="max_length"]').value)
-                },
-                input: {
-                    preprocessing: {
-                        resize: form.querySelector('[name="image_size"]').value
-                            .split(',').map(x => parseInt(x.trim()))
-                    }
-                }
-            };
-        }
-
-        // Update the handleSubmit function to include configuration
-        async function handleSubmit(event) {
-            event.preventDefault();
-            
-            const formData = new FormData(event.target);
-            formData.append('config', JSON.stringify(getConfigFromForm()));
-
-            try {
-                const response = await fetch('/generate', {
-                    method: 'POST',
-                    body: formData
-                });
-
-                if (response.ok) {
-                    const blob = await response.blob();
-                    downloadFile(blob, 'lilypad-module.zip');
-                } else {
-                    const error = await response.text();
-                    showError(error);
-                }
-            } catch (error) {
-                showError('An error occurred while generating the module');
-            }
-
-            return false;
-        }
-
-        function downloadFile(blob, filename) {
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = filename;
-            document.body.appendChild(a);
-            a.click();
-            window.URL.revokeObjectURL(url);
-            document.body.removeChild(a);
-        }
-    </script>
 </body>
 </html>
