@@ -1,113 +1,119 @@
-# Image Classification Module for Lilypad
+# Lilypad Module Generator
 
-This repository contains a generalized image classification module that can deploy and run various Hugging Face image classification models on Lilypad.
+A web-based tool that generates Lilypad deployment modules from Hugging Face models.
 
-## Features
+## Features Checklist
 
-- [x] Web Interface for Model Deployment
-  - [x] Paste Hugging Face model URL
-  - [x] Generated files preview
-  - [x] Download packaged module
-  - [x] Setup instructions
-
-- [x] Performance Monitoring
-  - [x] Real-time metrics tracking
-  - [x] Interactive dashboards
-  - [x] Cost analysis
-  - [x] Resource usage monitoring
-  - [x] Automated recommendations
+- [x] Core Functionality
+  - [x] Model URL input
+  - [x] File generation
+  - [x] ZIP packaging
+  - [x] Download capability
 
 - [x] Model Support
-  - [x] Image classification models
-  - [x] Text classification models
-  - [x] Object detection models
-  - [x] Multi-modal models
+  - [x] Text Classification
+  - [x] Image Classification
+  - [x] Object Detection
+  - [x] Question Answering
+  - [x] Automatic model type detection
 
-- [x] Deployment Support
-  - [x] Docker containerization
-  - [x] Lilypad integration
-  - [x] Resource optimization
-  - [x] Error handling
+- [x] File Generation
+  - [x] Dockerfile
+  - [x] requirements.txt
+  - [x] run_inference.py
+  - [x] module.yaml
+  - [x] README.md
 
-- [x] Testing & Validation
-  - [x] Automated testing
-  - [x] Performance benchmarking
-  - [x] Configuration validation
-  - [x] Integration testing
+- [x] Preview Features
+  - [x] Model information display
+  - [x] Sample input/output preview
+  - [x] File content preview
+  - [x] Markdown rendering
 
-## Setup Instructions
+- [x] Error Handling
+  - [x] URL validation
+  - [x] Model compatibility check
+  - [x] User-friendly error messages
+  - [x] Preview error handling
 
-1. First-time setup:
+- [ ] Additional Features
+  - [ ] Custom configuration options
+  - [ ] Interactive testing interface
+  - [ ] Multiple model support
+  - [ ] Batch processing
+
+## Quick Start
+
+1. Start the server:
    ```bash
-   # Clone the repository
-   git clone [repository-url]
-   cd Image-Classification
-
-   # Create a Python virtual environment (recommended)
-   python -m venv venv
-   source venv/bin/activate  # On Windows use: venv\Scripts\activate
-
-   # Install dependencies
-   pip install -r requirements.txt
+   python app.py
    ```
 
-2. Start the web interface:
-   ```bash
-   python server.py
+2. Open in browser:
+   ```
+   http://localhost:5000
    ```
 
-3. Access the interfaces:
-   - Main interface: http://localhost:5000
-   - Monitoring dashboard: http://localhost:5000/monitor
-
-## Usage
-
-1. Model Deployment:
-   - Visit the main interface
+3. Use the interface:
    - Paste a Hugging Face model URL
-   - Preview generated files
-   - Download the packaged module
-   - Follow provided setup instructions
+   - Preview the model (optional)
+   - Generate and download the module
+   - Follow the setup instructions
 
-2. Performance Monitoring:
-   - Visit the monitoring dashboard
-   - Select a model to monitor
-   - View real-time metrics
-   - Analyze performance trends
-   - Review recommendations
+## Supported Models
 
-## Monitoring Features
+- Text Classification Models
+- Image Classification Models
+- Object Detection Models
+- Question Answering Models
+- And more (automatically detected)
 
-- Real-time metrics tracking
-- Performance visualization
-- Resource usage analysis
-- Cost estimation
-- Trend analysis
-- Automated recommendations
-- Event tracking
-- Custom alerts
+## Generated Files
 
-## Benchmark Reports
+Each generated module includes:
+- `Dockerfile` - Container configuration
+- `requirements.txt` - Python dependencies
+- `run_inference.py` - Model inference code
+- `module.yaml` - Lilypad configuration
+- `README.md` - Setup instructions
 
-The system generates comprehensive benchmark reports including:
-- Throughput metrics
-- Latency analysis
-- Resource utilization
-- Cost analysis
-- Optimization recommendations
+## Usage Example
+
+```bash
+# After downloading and extracting the module:
+
+# Build the Docker image
+docker build -t my-model .
+
+# Run locally
+docker run -v $(pwd)/input:/workspace/input \
+          -e INPUT_PATH=/workspace/input/input.txt \
+          my-model
+
+# Deploy to Lilypad
+lilypad module deploy .
+```
+
+## Development
+
+### Prerequisites
+- Python 3.9+
+- Flask
+- Hugging Face Hub library
+
+### Setup
+```bash
+# Install dependencies
+pip install -r requirements.txt
+
+# Run development server
+python app.py
+```
 
 ## Contributing
 
-Contributions are welcome! Please read the contributing guidelines before submitting a pull request.
+Contributions are welcome! See CONTRIBUTING.md for guidelines.
 
 ## License
 
 MIT License - See LICENSE file for details
-
-## Roadmap
-
-- [ ] Add support for more model architectures
-- [ ] Implement automated scaling
-- [ ] Add alert/notification system
-- [ ] Enhance visualization options
-- [ ] Add batch processing support

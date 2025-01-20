@@ -25,8 +25,13 @@
                                name="model_url"
                                class="flex-1 p-2 border border-gray-300 rounded-md"
                                placeholder="https://huggingface.co/microsoft/resnet-50"
-                               oninput="validateInput(event)"
+                               oninput="handleInput(event)"
                                required>
+                        <button type="button"
+                                onclick="previewModel()"
+                                class="bg-gray-500 text-white py-2 px-6 rounded-md hover:bg-gray-600 transition-colors">
+                            Preview
+                        </button>
                         <button type="submit" 
                                 class="bg-blue-500 text-white py-2 px-6 rounded-md hover:bg-blue-600 transition-colors">
                             Generate
@@ -37,17 +42,31 @@
             </form>
         </div>
 
-        <!-- Model Information -->
-        <div id="model-info" class="bg-white rounded-lg shadow-md p-6 mb-8 hidden">
-            <h2 class="text-lg font-semibold mb-4">Model Information</h2>
-            <div class="grid grid-cols-2 gap-4">
+        <!-- Model Preview -->
+        <div id="model-preview" class="bg-white rounded-lg shadow-md p-6 mb-8 hidden">
+            <h2 class="text-lg font-semibold mb-4">Model Preview</h2>
+            
+            <!-- Model Info -->
+            <div class="grid grid-cols-2 gap-4 mb-6">
                 <div>
                     <p class="text-sm text-gray-600">Model Type</p>
-                    <p id="model-type" class="font-medium"></p>
+                    <p id="preview-model-type" class="font-medium"></p>
                 </div>
                 <div>
                     <p class="text-sm text-gray-600">Input Format</p>
-                    <p id="input-format" class="font-medium"></p>
+                    <p id="preview-input-format" class="font-medium"></p>
+                </div>
+            </div>
+            
+            <!-- Sample Input/Output -->
+            <div class="grid grid-cols-2 gap-6">
+                <div>
+                    <h3 class="font-medium mb-2">Sample Input</h3>
+                    <div id="preview-input" class="bg-gray-50 p-4 rounded-md"></div>
+                </div>
+                <div>
+                    <h3 class="font-medium mb-2">Sample Output</h3>
+                    <div id="preview-output" class="bg-gray-50 p-4 rounded-md"></div>
                 </div>
             </div>
         </div>
@@ -78,6 +97,10 @@
                     <p class="text-gray-600 mt-1">Copy the URL from Hugging Face and paste it above</p>
                 </li>
                 <li>
+                    <strong>Preview Model (Optional)</strong>
+                    <p class="text-gray-600 mt-1">Click Preview to see how the model works with sample input</p>
+                </li>
+                <li>
                     <strong>Generate and Download</strong>
                     <p class="text-gray-600 mt-1">Click Generate to download the module package</p>
                 </li>
@@ -93,6 +116,10 @@ cd lilypad-module</code>
                     <div class="bg-gray-50 p-4 rounded-md mt-2">
                         <code class="block whitespace-pre text-sm"># Build Docker image
 docker build -t my-model .
+
+# Prepare input
+mkdir -p input
+# Add your input file to the input directory
 
 # Run locally
 docker run -v $(pwd)/input:/workspace/input \
@@ -113,7 +140,7 @@ docker run -v $(pwd)/input:/workspace/input \
     <script>
         let currentFiles = {};
 
-        function validateInput(event) {
+        async function handleInput(event) {
             const url = event.target.value;
             const error = document.getElementById('url-error');
             
@@ -124,7 +151,72 @@ docker run -v $(pwd)/input:/workspace/input \
             }
             
             error.classList.add('hidden');
+            
+            // Fetch file previews
+            await previewFiles();
             return true;
+        }
+
+        async function previewModel() {
+            const modelUrl = document.getElementById('model_url').value;
+            const previewSection = document.getElementById('model-preview');
+            
+            try {
+                const formData = new FormData();
+                formData.append('model_url', modelUrl);
+                
+                const response = await fetch('/preview', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (data.error) {
+                    showError(data.error);
+                    return;
+                }
+                
+                // Update preview section
+                document.getElementById('preview-model-type').textContent = data.model_info.type;
+                document.getElementById('preview-input-format').textContent = data.model_info.input_format;
+                document.getElementById('preview-input').textContent = JSON.stringify(data.sample_input, null, 2);
+                document.getElementById('preview-output').textContent = JSON.stringify(data.sample_output, null, 2);
+                
+                previewSection.classList.remove('hidden');
+                
+            } catch (error) {
+                showError('Error previewing model');
+            }
+        }
+
+        async function previewFiles() {
+            const modelUrl = document.getElementById('model_url').value;
+            const filesPreview = document.getElementById('files-preview');
+            
+            try {
+                const formData = new FormData();
+                formData.append('model_url', modelUrl);
+                
+                const response = await fetch('/files', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (data.error) {
+                    showError(data.error);
+                    return;
+                }
+                
+                currentFiles = data;
+                filesPreview.classList.remove('hidden');
+                showFile();
+                
+            } catch (error) {
+                showError('Error generating file preview');
+            }
         }
 
         async function handleSubmit(event) {
@@ -144,23 +236,15 @@ docker run -v $(pwd)/input:/workspace/input \
                 });
 
                 if (response.ok) {
-                    // Get the filename from the Content-Disposition header
-                    const contentDisposition = response.headers.get('Content-Disposition');
-                    const filename = contentDisposition.split('filename=')[1].replace(/"/g, '');
-
-                    // Convert response to blob and download
                     const blob = await response.blob();
                     const url = window.URL.createObjectURL(blob);
                     const a = document.createElement('a');
                     a.href = url;
-                    a.download = filename;
+                    a.download = 'lilypad-module.zip';
                     document.body.appendChild(a);
                     a.click();
                     window.URL.revokeObjectURL(url);
                     document.body.removeChild(a);
-
-                    // Show success message
-                    showSuccess();
                 } else {
                     const error = await response.text();
                     showError(error);
@@ -172,32 +256,23 @@ docker run -v $(pwd)/input:/workspace/input \
             return false;
         }
 
-        function showSuccess() {
-            const modelInfo = document.getElementById('model-info');
-            const filesPreview = document.getElementById('files-preview');
+        function showFile() {
+            const selector = document.getElementById('file-selector');
+            const content = document.getElementById('content');
+            const selectedFile = selector.value;
             
-            modelInfo.classList.remove('hidden');
-            filesPreview.classList.remove('hidden');
-            
-            // Show some basic info
-            document.getElementById('model-type').textContent = 'Detected from model tags';
-            document.getElementById('input-format').textContent = 'Based on model type';
+            if (currentFiles[selectedFile]) {
+                content.textContent = currentFiles[selectedFile];
+                if (selectedFile === 'README.md') {
+                    content.innerHTML = marked.parse(currentFiles[selectedFile]);
+                }
+            }
         }
 
         function showError(message) {
             const error = document.getElementById('url-error');
             error.textContent = message;
             error.classList.remove('hidden');
-        }
-
-        function showFile() {
-            const selector = document.getElementById('file-selector');
-            const content = document.getElementById('content');
-            const selectedFile = selector.value;
-            
-            // In a full implementation, we would store the file contents
-            // For now, show a placeholder
-            content.textContent = `Content of ${selectedFile} would be shown here`;
         }
     </script>
 </body>

@@ -1,300 +1,85 @@
-from flask import Flask, request, send_file, render_template
+from flask import Flask, request, send_file, render_template, jsonify
 from huggingface_hub import HfApi
 import os
 import json
 import zipfile
 from io import BytesIO
 import tempfile
+import torch
+from transformers import pipeline
+from error_handler import validate_model_url, handle_error, ModelGenerationError
 
 app = Flask(__name__)
 
-def detect_model_type(model_info):
-    """Detect the model type from model info"""
-    pipeline_mapping = {
-        'text-classification': {
-            'task': 'text-classification',
-            'input_type': 'text',
-            'example': 'This movie was fantastic!'
-        },
-        'sentiment-analysis': {
-            'task': 'text-classification',
-            'input_type': 'text',
-            'example': 'I really enjoyed this product.'
-        },
-        'image-classification': {
-            'task': 'image-classification',
-            'input_type': 'image',
-            'example': 'image.jpg (in JPEG, PNG, or WebP format)'
-        },
-        'object-detection': {
-            'task': 'object-detection',
-            'input_type': 'image',
-            'example': 'image.jpg (in JPEG, PNG, or WebP format)'
-        },
+# Previous functions remain the same...
+[Previous functions from app.py]
+
+@app.route('/preview', methods=['POST'])
+def preview_model():
+    """Preview model with sample input"""
+    try:
+        model_url = request.form.get('model_url')
+        validate_model_url(model_url)
+        model_info = get_model_info(model_url)
+        model_type = detect_model_type(model_info)
+        
+        # Get sample input based on model type
+        sample_input = get_sample_input(model_type)
+        
+        # Run quick inference
+        device = -1  # Use CPU for preview
+        pipe = pipeline(model_type['task'], model=model_info.id, device=device)
+        result = pipe(sample_input)
+        
+        return jsonify({
+            'model_info': {
+                'name': model_info.id,
+                'type': model_type['task'],
+                'input_format': model_type['input_type'],
+            },
+            'sample_input': sample_input,
+            'sample_output': result
+        })
+        
+    except Exception as e:
+        return jsonify({'error': handle_error(e)}), 400
+
+def get_sample_input(model_type):
+    """Get appropriate sample input based on model type"""
+    samples = {
+        'text-classification': "This is an amazing example of how to use transformer models!",
+        'image-classification': None,  # We'll handle images separately
+        'object-detection': None,
         'question-answering': {
-            'task': 'question-answering',
-            'input_type': 'json',
-            'example': '{"question": "What is...", "context": "The context..."}'
+            'question': "What are transformer models?",
+            'context': "Transformer models are neural networks that specialize in processing sequential data."
         }
     }
     
-    # Check model tags
-    for tag in model_info.tags:
-        if tag in pipeline_mapping:
-            return pipeline_mapping[tag]
-    
-    # Default to text classification if no specific type is found
-    return pipeline_mapping['text-classification']
+    return samples.get(model_type['task'], "Sample input text")
 
-def generate_dockerfile():
-    """Generate Dockerfile content"""
-    return """FROM python:3.9-slim
-
-# Install system dependencies for handling images
-RUN apt-get update && apt-get install -y \\
-    libgl1-mesa-glx \\
-    libglib2.0-0 \\
-    && rm -rf /var/lib/apt/lists/*
-
-# Set working directory
-WORKDIR /workspace
-
-# Install dependencies
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Create output directory
-RUN mkdir -p /outputs
-
-# Copy inference script
-COPY run_inference.py .
-
-# Set entrypoint
-ENTRYPOINT ["python", "/workspace/run_inference.py"]"""
-
-def generate_requirements(model_info, model_type):
-    """Generate requirements.txt content based on model type"""
-    requirements = [
-        "transformers==4.36.0",
-        "torch==2.1.0",
-        "numpy<2.0.0",
-        "huggingface-hub==0.19.4"
-    ]
-    
-    # Add type-specific requirements
-    if model_type['input_type'] == 'image':
-        requirements.extend([
-            "pillow==10.0.0",
-            "torchvision==0.16.0"
-        ])
-    
-    return "\n".join(requirements)
-
-def generate_run_inference(model_id, model_type):
-    """Generate run_inference.py content"""
-    return f'''import os
-import json
-from transformers import pipeline
-import torch
-
-def load_input(input_path, input_type):
-    """Load and preprocess input based on type"""
-    if input_type == "image":
-        from PIL import Image
-        return Image.open(input_path)
-    elif input_type == "json":
-        with open(input_path, 'r') as f:
-            return json.load(f)
-    else:  # text
-        with open(input_path, 'r') as f:
-            return f.read()
-
-def main():
-    # Get input parameters from environment variables
-    input_path = os.environ.get('INPUT_PATH')
-    if not input_path:
-        raise ValueError("INPUT_PATH environment variable must be set")
-    
-    try:
-        # Initialize the pipeline
-        device = 0 if torch.cuda.is_available() else -1
-        pipe = pipeline(
-            task="{model_type['task']}", 
-            model="{model_id}",
-            device=device
-        )
-        
-        # Load and preprocess input
-        input_data = load_input(input_path, "{model_type['input_type']}")
-        
-        # Run inference
-        result = pipe(input_data)
-        
-        # Format output
-        output = {{
-            'result': result,
-            'status': 'success'
-        }}
-        
-    except Exception as e:
-        output = {{
-            'error': str(e),
-            'status': 'error'
-        }}
-    
-    # Save output
-    os.makedirs('/outputs', exist_ok=True)
-    with open('/outputs/result.json', 'w') as f:
-        json.dump(output, f, indent=2)
-
-if __name__ == "__main__":
-    main()'''
-
-def generate_module_yaml(model_id, model_type):
-    """Generate module.yaml content"""
-    return f"""name: {model_id.split('/')[-1]}
-version: 1.0.0
-description: Hugging Face {model_type['task']} model deployment
-author: Generated by Lilypad Module Generator
-
-resources:
-  cpu: 2
-  memory: 4Gi
-  gpu: 1  # Remove if GPU is not needed
-
-input:
-  - name: INPUT_PATH
-    description: Path to the input file ({model_type['input_type']} format)
-    type: string
-    required: true
-
-output:
-  - name: result
-    description: Model output
-    type: file
-    path: /outputs/result.json"""
-
-def generate_readme(model_id, model_type):
-    """Generate README.md content with detailed instructions"""
-    return f"""# {model_id.split('/')[-1]} Lilypad Module
-
-This module deploys the [{model_id}](https://huggingface.co/{model_id}) model for {model_type['task']}.
-
-## Quick Start
-
-1. Build the Docker image:
-   ```bash
-   docker build -t {model_id.split('/')[-1]} .
-   ```
-
-2. Prepare your input:
-   Input type: {model_type['input_type']}
-   Example: {model_type['example']}
-   ```bash
-   # Create input directory
-   mkdir -p input
-   ```
-
-3. Run locally:
-   ```bash
-   docker run -v $(pwd)/input:/workspace/input \\
-             -v $(pwd)/output:/outputs \\
-             -e INPUT_PATH=/workspace/input/input.{model_type['input_type'] if model_type['input_type'] != 'json' else 'json'} \\
-             {model_id.split('/')[-1]}
-   ```
-
-4. Deploy to Lilypad:
-   ```bash
-   lilypad module deploy .
-   ```
-
-## Input Format
-
-- Type: {model_type['input_type']}
-- Example: {model_type['example']}
-- Location: Place your input file in the `input` directory
-
-## Output Format
-
-The model will output a JSON file containing:
-```json
-{{
-    "result": {{
-        // Model-specific output format
-    }},
-    "status": "success"
-}}
-```
-
-## Troubleshooting
-
-1. Memory Issues
-   - Adjust memory in module.yaml if needed
-   - Check input file size
-
-2. GPU Issues
-   - Ensure GPU is available
-   - Remove GPU from module.yaml if not needed
-
-3. Input Issues
-   - Verify input file format
-   - Check file permissions
-
-## Additional Resources
-
-- [Hugging Face Model Card]({model_id})
-- [Lilypad Documentation](https://docs.lilypad.tech)
-"""
-
-def create_zip_file(model_info):
-    """Create zip file containing all necessary files"""
-    memory_file = BytesIO()
-    with zipfile.ZipFile(memory_file, 'w', zipfile.ZIP_DEFLATED) as zf:
-        # Detect model type
-        model_type = detect_model_type(model_info)
-        model_id = model_info.id
-        
-        # Add files to zip
-        zf.writestr('Dockerfile', generate_dockerfile())
-        zf.writestr('requirements.txt', generate_requirements(model_info, model_type))
-        zf.writestr('run_inference.py', generate_run_inference(model_id, model_type))
-        zf.writestr('module.yaml', generate_module_yaml(model_id, model_type))
-        zf.writestr('README.md', generate_readme(model_id, model_type))
-        
-        # Add example input directory and file
-        if model_type['input_type'] == 'text':
-            zf.writestr('input/input.txt', 'Example input text')
-        elif model_type['input_type'] == 'json':
-            zf.writestr('input/input.json', '{"question": "Example question?", "context": "Example context."}')
-        else:  # image
-            zf.writestr('input/README.md', 'Place your image files here (JPEG, PNG, or WebP format)')
-    
-    memory_file.seek(0)
-    return memory_file
-
-@app.route('/')
-def index():
-    return render_template('index.html')
-
-@app.route('/generate', methods=['POST'])
-def generate():
+@app.route('/files', methods=['POST'])
+def preview_files():
+    """Preview generated files without downloading"""
     try:
         model_url = request.form.get('model_url')
-        if not model_url:
-            return "Model URL is required", 400
-            
+        validate_model_url(model_url)
         model_info = get_model_info(model_url)
-        zip_file = create_zip_file(model_info)
+        model_type = detect_model_type(model_info)
         
-        return send_file(
-            zip_file,
-            mimetype='application/zip',
-            as_attachment=True,
-            download_name=f'lilypad-{model_info.id.split("/")[-1]}.zip'
-        )
+        # Generate files content
+        files = {
+            'Dockerfile': generate_dockerfile(),
+            'requirements.txt': generate_requirements(model_info, model_type),
+            'run_inference.py': generate_run_inference(model_info.id, model_type),
+            'module.yaml': generate_module_yaml(model_info.id, model_type),
+            'README.md': generate_readme(model_info.id, model_type)
+        }
+        
+        return jsonify(files)
         
     except Exception as e:
-        return str(e), 500
+        return jsonify({'error': handle_error(e)}), 400
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
