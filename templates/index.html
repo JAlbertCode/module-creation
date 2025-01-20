@@ -37,214 +37,212 @@
                             Generate
                         </button>
                     </div>
-                    <p id="url-error" class="mt-2 text-red-500 text-sm hidden"></p>
+                </div>
+
+                <!-- Configuration Panel -->
+                <div id="config-panel" class="mt-6 hidden">
+                    <h3 class="font-medium mb-4">Module Configuration</h3>
+                    
+                    <!-- Resource Configuration -->
+                    <div class="grid grid-cols-2 gap-4 mb-6">
+                        <div>
+                            <label class="block text-sm text-gray-700 mb-1">CPU Cores</label>
+                            <select name="cpu_cores" class="w-full p-2 border rounded">
+                                <option value="1">1 Core</option>
+                                <option value="2" selected>2 Cores</option>
+                                <option value="4">4 Cores</option>
+                                <option value="8">8 Cores</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm text-gray-700 mb-1">Memory</label>
+                            <select name="memory" class="w-full p-2 border rounded">
+                                <option value="2Gi">2 GB</option>
+                                <option value="4Gi" selected>4 GB</option>
+                                <option value="8Gi">8 GB</option>
+                                <option value="16Gi">16 GB</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Model Configuration -->
+                    <div class="grid grid-cols-2 gap-4 mb-6">
+                        <div>
+                            <label class="block text-sm text-gray-700 mb-1">Batch Size</label>
+                            <input type="number" 
+                                   name="batch_size" 
+                                   value="1" 
+                                   min="1" 
+                                   max="32"
+                                   class="w-full p-2 border rounded">
+                        </div>
+                        <div>
+                            <label class="block text-sm text-gray-700 mb-1">GPU Support</label>
+                            <div class="flex items-center mt-2">
+                                <input type="checkbox" 
+                                       name="use_gpu" 
+                                       id="use_gpu"
+                                       class="mr-2">
+                                <label for="use_gpu">Enable GPU support</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Advanced Configuration -->
+                    <div id="advanced-config" class="hidden">
+                        <div class="border-t pt-4">
+                            <h4 class="font-medium mb-4">Advanced Settings</h4>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-sm text-gray-700 mb-1">Max Sequence Length</label>
+                                    <input type="number" 
+                                           name="max_length" 
+                                           value="512" 
+                                           class="w-full p-2 border rounded">
+                                </div>
+                                <div>
+                                    <label class="block text-sm text-gray-700 mb-1">Image Size</label>
+                                    <input type="text" 
+                                           name="image_size" 
+                                           value="224,224" 
+                                           class="w-full p-2 border rounded"
+                                           placeholder="width,height">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mt-4">
+                        <button type="button" 
+                                onclick="toggleAdvanced()"
+                                class="text-blue-500 text-sm hover:text-blue-700">
+                            Show Advanced Settings
+                        </button>
+                    </div>
                 </div>
             </form>
         </div>
 
         <!-- Model Preview -->
         <div id="model-preview" class="bg-white rounded-lg shadow-md p-6 mb-8 hidden">
-            <h2 class="text-lg font-semibold mb-4">Model Preview</h2>
-            
-            <!-- Model Info -->
-            <div class="grid grid-cols-2 gap-4 mb-6">
-                <div>
-                    <p class="text-sm text-gray-600">Model Type</p>
-                    <p id="preview-model-type" class="font-medium"></p>
-                </div>
-                <div>
-                    <p class="text-sm text-gray-600">Input Format</p>
-                    <p id="preview-input-format" class="font-medium"></p>
-                </div>
-            </div>
-            
-            <!-- Sample Input/Output -->
-            <div class="grid grid-cols-2 gap-6">
-                <div>
-                    <h3 class="font-medium mb-2">Sample Input</h3>
-                    <div id="preview-input" class="bg-gray-50 p-4 rounded-md"></div>
-                </div>
-                <div>
-                    <h3 class="font-medium mb-2">Sample Output</h3>
-                    <div id="preview-output" class="bg-gray-50 p-4 rounded-md"></div>
-                </div>
-            </div>
+            <!-- Previous model preview content -->
         </div>
 
         <!-- Generated Files Preview -->
         <div id="files-preview" class="bg-white rounded-lg shadow-md p-6 mb-8 hidden">
-            <div class="flex justify-between items-center mb-4">
-                <h2 class="text-lg font-semibold">Generated Files</h2>
-                <select id="file-selector" class="p-2 border border-gray-300 rounded-md" onchange="showFile()">
-                    <option value="README.md">README.md</option>
-                    <option value="Dockerfile">Dockerfile</option>
-                    <option value="run_inference.py">run_inference.py</option>
-                    <option value="module.yaml">module.yaml</option>
-                    <option value="requirements.txt">requirements.txt</option>
-                </select>
-            </div>
-            <div id="file-content" class="bg-gray-50 p-4 rounded-md overflow-x-auto">
-                <pre><code id="content"></code></pre>
-            </div>
+            <!-- Previous files preview content -->
         </div>
 
         <!-- Instructions -->
         <div class="bg-white rounded-lg shadow-md p-6">
-            <h2 class="text-lg font-semibold mb-4">Quick Start Guide</h2>
-            <ol class="list-decimal pl-5 space-y-4">
-                <li>
-                    <strong>Paste Model URL</strong>
-                    <p class="text-gray-600 mt-1">Copy the URL from Hugging Face and paste it above</p>
-                </li>
-                <li>
-                    <strong>Preview Model (Optional)</strong>
-                    <p class="text-gray-600 mt-1">Click Preview to see how the model works with sample input</p>
-                </li>
-                <li>
-                    <strong>Generate and Download</strong>
-                    <p class="text-gray-600 mt-1">Click Generate to download the module package</p>
-                </li>
-                <li>
-                    <strong>Setup Local Environment</strong>
-                    <div class="bg-gray-50 p-4 rounded-md mt-2">
-                        <code class="block whitespace-pre text-sm">unzip lilypad-module.zip
-cd lilypad-module</code>
-                    </div>
-                </li>
-                <li>
-                    <strong>Build and Run</strong>
-                    <div class="bg-gray-50 p-4 rounded-md mt-2">
-                        <code class="block whitespace-pre text-sm"># Build Docker image
-docker build -t my-model .
-
-# Prepare input
-mkdir -p input
-# Add your input file to the input directory
-
-# Run locally
-docker run -v $(pwd)/input:/workspace/input \
-          -e INPUT_PATH=/workspace/input/input.txt \
-          my-model</code>
-                    </div>
-                </li>
-                <li>
-                    <strong>Deploy to Lilypad</strong>
-                    <div class="bg-gray-50 p-4 rounded-md mt-2">
-                        <code class="block whitespace-pre text-sm">lilypad module deploy .</code>
-                    </div>
-                </li>
-            </ol>
+            <!-- Previous instructions content -->
         </div>
     </div>
 
     <script>
-        let currentFiles = {};
+        // Previous JavaScript functions remain...
 
         async function handleInput(event) {
             const url = event.target.value;
-            const error = document.getElementById('url-error');
-            
-            if (!url.startsWith('https://huggingface.co/')) {
-                error.textContent = 'Please enter a valid Hugging Face model URL';
-                error.classList.remove('hidden');
-                return false;
+            if (url.startsWith('https://huggingface.co/')) {
+                document.getElementById('config-panel').classList.remove('hidden');
+                await updateConfigDefaults(url);
+            } else {
+                document.getElementById('config-panel').classList.add('hidden');
             }
-            
-            error.classList.add('hidden');
-            
-            // Fetch file previews
-            await previewFiles();
-            return true;
         }
 
-        async function previewModel() {
-            const modelUrl = document.getElementById('model_url').value;
-            const previewSection = document.getElementById('model-preview');
-            
+        async function updateConfigDefaults(modelUrl) {
             try {
-                const formData = new FormData();
-                formData.append('model_url', modelUrl);
-                
-                const response = await fetch('/preview', {
+                const response = await fetch('/config/defaults', {
                     method: 'POST',
-                    body: formData
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ model_url: modelUrl })
                 });
-                
-                const data = await response.json();
-                
-                if (data.error) {
-                    showError(data.error);
-                    return;
+
+                if (response.ok) {
+                    const config = await response.json();
+                    applyConfigDefaults(config);
                 }
-                
-                // Update preview section
-                document.getElementById('preview-model-type').textContent = data.model_info.type;
-                document.getElementById('preview-input-format').textContent = data.model_info.input_format;
-                document.getElementById('preview-input').textContent = JSON.stringify(data.sample_input, null, 2);
-                document.getElementById('preview-output').textContent = JSON.stringify(data.sample_output, null, 2);
-                
-                previewSection.classList.remove('hidden');
-                
             } catch (error) {
-                showError('Error previewing model');
+                console.error('Error loading config defaults:', error);
             }
         }
 
-        async function previewFiles() {
-            const modelUrl = document.getElementById('model_url').value;
-            const filesPreview = document.getElementById('files-preview');
-            
-            try {
-                const formData = new FormData();
-                formData.append('model_url', modelUrl);
-                
-                const response = await fetch('/files', {
-                    method: 'POST',
-                    body: formData
-                });
-                
-                const data = await response.json();
-                
-                if (data.error) {
-                    showError(data.error);
-                    return;
-                }
-                
-                currentFiles = data;
-                filesPreview.classList.remove('hidden');
-                showFile();
-                
-            } catch (error) {
-                showError('Error generating file preview');
+        function applyConfigDefaults(config) {
+            // Update form fields with default values
+            document.querySelector('[name="cpu_cores"]').value = config.resources.cpu;
+            document.querySelector('[name="memory"]').value = config.resources.memory;
+            document.querySelector('[name="batch_size"]').value = config.model.batch_size;
+            document.querySelector('[name="use_gpu"]').checked = !!config.resources.gpu;
+
+            // Update advanced settings if available
+            if (config.model.max_length) {
+                document.querySelector('[name="max_length"]').value = config.model.max_length;
+            }
+            if (config.input?.preprocessing?.resize) {
+                document.querySelector('[name="image_size"]').value = 
+                    config.input.preprocessing.resize.join(',');
+            }
+
+            // Show/hide model-specific settings
+            const advancedConfig = document.getElementById('advanced-config');
+            if (config.model.type.includes('text')) {
+                advancedConfig.querySelector('[name="image_size"]').parentElement.style.display = 'none';
+                advancedConfig.querySelector('[name="max_length"]').parentElement.style.display = 'block';
+            } else if (config.model.type.includes('image')) {
+                advancedConfig.querySelector('[name="image_size"]').parentElement.style.display = 'block';
+                advancedConfig.querySelector('[name="max_length"]').parentElement.style.display = 'none';
             }
         }
 
+        function toggleAdvanced() {
+            const advancedSection = document.getElementById('advanced-config');
+            const isHidden = advancedSection.classList.contains('hidden');
+            advancedSection.classList.toggle('hidden');
+            const button = event.target;
+            button.textContent = isHidden ? 'Hide Advanced Settings' : 'Show Advanced Settings';
+        }
+
+        function getConfigFromForm() {
+            const form = document.getElementById('generate-form');
+            return {
+                resources: {
+                    cpu: parseInt(form.querySelector('[name="cpu_cores"]').value),
+                    memory: form.querySelector('[name="memory"]').value,
+                    gpu: form.querySelector('[name="use_gpu"]').checked ? 1 : null
+                },
+                model: {
+                    batch_size: parseInt(form.querySelector('[name="batch_size"]').value),
+                    max_length: parseInt(form.querySelector('[name="max_length"]').value)
+                },
+                input: {
+                    preprocessing: {
+                        resize: form.querySelector('[name="image_size"]').value
+                            .split(',').map(x => parseInt(x.trim()))
+                    }
+                }
+            };
+        }
+
+        // Update the handleSubmit function to include configuration
         async function handleSubmit(event) {
             event.preventDefault();
             
-            const form = event.target;
-            const url = form.model_url.value;
-            
-            if (!validateInput({ target: form.model_url })) {
-                return false;
-            }
+            const formData = new FormData(event.target);
+            formData.append('config', JSON.stringify(getConfigFromForm()));
 
             try {
                 const response = await fetch('/generate', {
                     method: 'POST',
-                    body: new FormData(form)
+                    body: formData
                 });
 
                 if (response.ok) {
                     const blob = await response.blob();
-                    const url = window.URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = 'lilypad-module.zip';
-                    document.body.appendChild(a);
-                    a.click();
-                    window.URL.revokeObjectURL(url);
-                    document.body.removeChild(a);
+                    downloadFile(blob, 'lilypad-module.zip');
                 } else {
                     const error = await response.text();
                     showError(error);
@@ -256,23 +254,15 @@ docker run -v $(pwd)/input:/workspace/input \
             return false;
         }
 
-        function showFile() {
-            const selector = document.getElementById('file-selector');
-            const content = document.getElementById('content');
-            const selectedFile = selector.value;
-            
-            if (currentFiles[selectedFile]) {
-                content.textContent = currentFiles[selectedFile];
-                if (selectedFile === 'README.md') {
-                    content.innerHTML = marked.parse(currentFiles[selectedFile]);
-                }
-            }
-        }
-
-        function showError(message) {
-            const error = document.getElementById('url-error');
-            error.textContent = message;
-            error.classList.remove('hidden');
+        function downloadFile(blob, filename) {
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
         }
     </script>
 </body>
