@@ -47,8 +47,8 @@ WORKDIR /workspace
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Create output directory
-RUN mkdir -p /outputs
+# Create directories
+RUN mkdir -p /outputs /workspace/input
 
 # Copy inference script
 COPY run_inference.py .
@@ -74,28 +74,24 @@ def generate_requirements(model_type):
 
 def generate_inference(model_id, model_type):
     """Generate run_inference.py content"""
-    return f'''import os
+    if model_type['input'] == 'image':
+        return f'''import os
 import json
 from transformers import pipeline
 import torch
-
-def load_input(input_path):
-    """Load and preprocess input data"""
-    if "{model_type['input']}" == "image":
-        from PIL import Image
-        return Image.open(input_path)
-    else:
-        with open(input_path, 'r') as f:
-            return f.read()
+from PIL import Image
+import argparse
 
 def main():
-    # Get input path from environment
-    input_path = os.environ.get('INPUT_PATH')
+    parser = argparse.ArgumentParser(description='Run inference on {model_type["task"]} model')
+    parser.add_argument('--image_path', help='Path to input image')
+    args = parser.parse_args()
+
+    input_path = args.image_path or os.environ.get('INPUT_PATH')
     if not input_path:
-        raise ValueError("INPUT_PATH environment variable must be set")
+        raise ValueError("Please provide image path via --image_path or INPUT_PATH environment variable")
     
     try:
-        # Initialize pipeline
         device = 0 if torch.cuda.is_available() else -1
         pipe = pipeline(
             task="{model_type['task']}", 
@@ -103,25 +99,54 @@ def main():
             device=device
         )
         
-        # Load and process input
-        input_data = load_input(input_path)
-        
-        # Run inference
-        result = pipe(input_data)
-        
-        # Format output
-        output = {{
-            'result': result,
-            'status': 'success'
-        }}
+        image = Image.open(input_path)
+        result = pipe(image)
+        output = {{"result": result, "status": "success"}}
         
     except Exception as e:
-        output = {{
-            'error': str(e),
-            'status': 'error'
-        }}
+        output = {{"error": str(e), "status": "error"}}
     
-    # Save output
+    os.makedirs('/outputs', exist_ok=True)
+    with open('/outputs/result.json', 'w') as f:
+        json.dump(output, f, indent=2)
+
+if __name__ == "__main__":
+    main()'''
+    else:
+        return f'''import os
+import json
+from transformers import pipeline
+import torch
+import argparse
+
+def main():
+    parser = argparse.ArgumentParser(description='Run inference on {model_type["task"]} model')
+    parser.add_argument('--input_text', help='Input text for the model')
+    args = parser.parse_args()
+    
+    input_text = args.input_text
+    if not input_text:
+        input_path = os.environ.get('INPUT_PATH')
+        if input_path:
+            with open(input_path, 'r') as f:
+                input_text = f.read()
+        else:
+            raise ValueError("Please provide input via --input_text argument")
+    
+    try:
+        device = 0 if torch.cuda.is_available() else -1
+        pipe = pipeline(
+            task="{model_type['task']}", 
+            model="{model_id}",
+            device=device
+        )
+        
+        result = pipe(input_text)
+        output = {{"result": result, "status": "success"}}
+        
+    except Exception as e:
+        output = {{"error": str(e), "status": "error"}}
+    
     os.makedirs('/outputs', exist_ok=True)
     with open('/outputs/result.json', 'w') as f:
         json.dump(output, f, indent=2)
@@ -144,7 +169,7 @@ input:
   - name: INPUT_PATH
     description: Path to the input file ({model_type['input']} format)
     type: string
-    required: true
+    required: false  # Not required since we can use command line args
 
 output:
   - name: result
@@ -165,20 +190,20 @@ This module deploys the [{model_id}](https://huggingface.co/{model_id}) model fr
    docker build -t {model_id.split('/')[-1]} .
    ```
 
-2. Prepare your input:
-   - For {model_type['input']} input
-   - Create an 'input' directory: `mkdir input`
-   - Add your input file to the 'input' directory
+2. Run the module:
 
-3. Run locally:
+   {"For image input:" if model_type["input"] == "image" else "For text input:"}
    ```bash
+   # Using command line arguments:
+   {"python run_inference.py --image_path=input/image.jpg" if model_type["input"] == "image" else "python run_inference.py --input_text=\"Your text here\""}
+
+   # Using input directory:
    docker run -v $(pwd)/input:/workspace/input \\
-             -v $(pwd)/output:/outputs \\
-             -e INPUT_PATH=/workspace/input/input.{"jpg" if model_type['input'] == "image" else "txt"} \\
+             -e INPUT_PATH=/workspace/input/{"image.jpg" if model_type["input"] == "image" else "input.txt"} \\
              {model_id.split('/')[-1]}
    ```
 
-4. Deploy to Lilypad:
+3. Deploy to Lilypad:
    ```bash
    lilypad module deploy .
    ```
@@ -186,12 +211,8 @@ This module deploys the [{model_id}](https://huggingface.co/{model_id}) model fr
 ## Input Format
 
 - Type: {model_type['input']}
-- File name: input.{"jpg" if model_type['input'] == "image" else "txt"}
-- Location: Place in the `input` directory
-
-## Output
-
-Results will be in: `output/result.json`'''
+- {"Place image files in the input directory" if model_type["input"] == "image" else "Provide text directly via --input_text or place in input.txt"}
+- Results will be in: output/result.json'''
 
 @app.route('/')
 def index():
@@ -222,7 +243,7 @@ def generate():
             if model_type['input'] == 'image':
                 zf.writestr('input/README.md', 'Place your image files (JPG/PNG) here')
             else:
-                zf.writestr('input/README.md', 'Place your text input files here')
+                zf.writestr('input/README.md', 'Place your text files here if not using command line input')
         
         memory_file.seek(0)
         
