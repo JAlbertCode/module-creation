@@ -2,6 +2,41 @@
 
 A web-based tool that generates Lilypad deployment modules from Hugging Face models. Simply paste a Hugging Face model URL, and get a ready-to-use Lilypad module.
 
+## Setup Instructions
+
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/JAlbertCode/module-creation.git
+   cd module-creation
+   ```
+
+2. Create and activate virtual environment:
+   ```bash
+   # Create virtual environment
+   python -m venv venv
+
+   # Activate on Mac/Linux
+   source venv/bin/activate
+
+   # Activate on Windows
+   venv\Scripts\activate
+   ```
+
+3. Install dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+4. Run the application:
+   ```bash
+   python app.py
+   ```
+
+5. Open in browser:
+   ```
+   http://localhost:5000
+   ```
+
 ## Features Checklist
 
 - [x] Core Functionality
@@ -42,21 +77,16 @@ A web-based tool that generates Lilypad deployment modules from Hugging Face mod
   - [ ] Batch processing support
   - [ ] Performance optimization presets
 
-## Usage
+## Using Generated Modules
 
-1. Start the server:
+After downloading and extracting the generated module:
+
+1. Navigate to module directory:
    ```bash
-   python app.py
+   cd lilypad-your-model-name
    ```
 
-2. Open in browser:
-   ```
-   http://localhost:5000
-   ```
-
-3. Enter Hugging Face model URL and generate module
-
-4. For generated modules:
+2. Run inference:
    ```bash
    # For text models:
    python run_inference.py --input_text="Your text here"
@@ -65,28 +95,33 @@ A web-based tool that generates Lilypad deployment modules from Hugging Face mod
    python run_inference.py --image_path=input/image.jpg
    ```
 
-## Generated Files
+## Required Files
 
-Each module includes:
-- `Dockerfile` - Container configuration
-- `requirements.txt` - Python dependencies
-- `run_inference.py` - Inference code with CLI support
-- `module.yaml` - Lilypad configuration
-- `README.md` - Setup instructions
-- `input/` - Directory for input files
-
-## Prerequisites
-
-- Python 3.9+
-- Flask
-- Hugging Face Hub library
-
-## Development
-
-Install dependencies:
-```bash
-pip install -r requirements.txt
+Your directory structure should look like this:
 ```
+module-creation/
+├── app.py
+├── requirements.txt
+├── templates/
+│   └── index.html
+└── README.md
+```
+
+## Troubleshooting
+
+Common issues:
+
+1. "No such file or directory":
+   - Make sure you're in the correct directory (module-creation)
+   - Verify all files are present using `ls` or `dir`
+
+2. Module not found errors:
+   - Ensure virtual environment is activated
+   - Run `pip install -r requirements.txt` again
+
+3. Port already in use:
+   - Change port in app.py to something else (e.g., 5001)
+   - Kill process using current port
 
 ## Contributing
 
