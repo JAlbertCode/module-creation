@@ -1,48 +1,48 @@
 # Lilypad Module Generator
 
-A web-based tool that generates Lilypad deployment modules from Hugging Face models.
+A web-based tool that generates Lilypad deployment modules from Hugging Face models. Simply paste a Hugging Face model URL, and get a ready-to-use Lilypad module.
 
 ## Features Checklist
 
 - [x] Core Functionality
-  - [x] Model URL input
-  - [x] File generation
-  - [x] ZIP packaging
-  - [x] Download capability
+  - [x] Accept Hugging Face model URL input
+  - [x] Detect model type automatically
+  - [x] Generate appropriate files
+  - [x] Package files into zip
+  - [x] Provide clear setup instructions
 
-- [x] Model Support
+- [x] Input Method Support
+  - [x] Command line interface for text input (--input_text)
+  - [x] File system input for images
+  - [x] Environment variable support (INPUT_PATH)
+  - [x] Flexible input handling based on model type
+
+- [x] File Generation
+  - [x] Dockerfile with proper dependencies
+  - [x] requirements.txt based on model type
+  - [x] run_inference.py with CLI support
+  - [x] module.yaml for Lilypad configuration
+  - [x] README with usage instructions
+
+- [x] Model Type Support
   - [x] Text Classification
   - [x] Image Classification
   - [x] Object Detection
   - [x] Question Answering
-  - [x] Automatic model type detection
-
-- [x] File Generation
-  - [x] Dockerfile
-  - [x] requirements.txt
-  - [x] run_inference.py
-  - [x] module.yaml
-  - [x] README.md
-
-- [x] Preview Features
-  - [x] Model information display
-  - [x] Sample input/output preview
-  - [x] File content preview
-  - [x] Markdown rendering
 
 - [x] Error Handling
-  - [x] URL validation
+  - [x] Invalid URL validation
   - [x] Model compatibility check
-  - [x] User-friendly error messages
-  - [x] Preview error handling
+  - [x] Input validation
+  - [x] Clear error messages
 
-- [ ] Additional Features
-  - [ ] Custom configuration options
-  - [ ] Interactive testing interface
-  - [ ] Multiple model support
-  - [ ] Batch processing
+- [ ] Future Enhancements
+  - [ ] Support for more model types
+  - [ ] Custom model configuration options
+  - [ ] Batch processing support
+  - [ ] Performance optimization presets
 
-## Quick Start
+## Usage
 
 1. Start the server:
    ```bash
@@ -54,65 +54,43 @@ A web-based tool that generates Lilypad deployment modules from Hugging Face mod
    http://localhost:5000
    ```
 
-3. Use the interface:
-   - Paste a Hugging Face model URL
-   - Preview the model (optional)
-   - Generate and download the module
-   - Follow the setup instructions
+3. Enter Hugging Face model URL and generate module
 
-## Supported Models
+4. For generated modules:
+   ```bash
+   # For text models:
+   python run_inference.py --input_text="Your text here"
 
-- Text Classification Models
-- Image Classification Models
-- Object Detection Models
-- Question Answering Models
-- And more (automatically detected)
+   # For image models:
+   python run_inference.py --image_path=input/image.jpg
+   ```
 
 ## Generated Files
 
-Each generated module includes:
+Each module includes:
 - `Dockerfile` - Container configuration
 - `requirements.txt` - Python dependencies
-- `run_inference.py` - Model inference code
+- `run_inference.py` - Inference code with CLI support
 - `module.yaml` - Lilypad configuration
 - `README.md` - Setup instructions
+- `input/` - Directory for input files
 
-## Usage Example
+## Prerequisites
 
-```bash
-# After downloading and extracting the module:
-
-# Build the Docker image
-docker build -t my-model .
-
-# Run locally
-docker run -v $(pwd)/input:/workspace/input \
-          -e INPUT_PATH=/workspace/input/input.txt \
-          my-model
-
-# Deploy to Lilypad
-lilypad module deploy .
-```
-
-## Development
-
-### Prerequisites
 - Python 3.9+
 - Flask
 - Hugging Face Hub library
 
-### Setup
-```bash
-# Install dependencies
-pip install -r requirements.txt
+## Development
 
-# Run development server
-python app.py
+Install dependencies:
+```bash
+pip install -r requirements.txt
 ```
 
 ## Contributing
 
-Contributions are welcome! See CONTRIBUTING.md for guidelines.
+Contributions welcome! Please check existing issues or create new ones.
 
 ## License
 
