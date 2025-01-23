@@ -10,7 +10,68 @@ import traceback
 
 app = Flask(__name__)
 
-[Previous functions up to generate_inference remain the same...]
+def get_model_info(model_url):
+    """Extract model information from Hugging Face URL"""
+    model_id = model_url.split('huggingface.co/')[-1].strip('/')
+    api = HfApi()
+    return api.model_info(model_id)
+
+def detect_model_type(model_info):
+    """Detect the model type from model info"""
+    pipeline_mapping = {
+        'text-classification': {'task': 'text-classification', 'input': 'text'},
+        'image-classification': {'task': 'image-classification', 'input': 'image'},
+        'object-detection': {'task': 'object-detection', 'input': 'image'},
+        'question-answering': {'task': 'question-answering', 'input': 'text'}
+    }
+    
+    for tag in model_info.tags:
+        if tag in pipeline_mapping:
+            return pipeline_mapping[tag]
+    
+    return {'task': 'text-classification', 'input': 'text'}  # Default
+
+def generate_dockerfile():
+    """Generate Dockerfile content"""
+    return '''FROM python:3.9-slim
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \\
+    libgl1-mesa-glx \\
+    libglib2.0-0 \\
+    && rm -rf /var/lib/apt/lists/*
+
+# Set working directory
+WORKDIR /workspace
+
+# Install dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Create directories
+RUN mkdir -p /outputs /workspace/input
+
+# Copy inference script
+COPY run_inference.py .
+
+# Set entrypoint
+ENTRYPOINT ["python", "/workspace/run_inference.py"]'''
+
+def generate_requirements(model_type):
+    """Generate requirements.txt content"""
+    reqs = [
+        "transformers==4.36.0",
+        "torch==2.1.0",
+        "numpy<2.0.0"
+    ]
+    
+    if model_type['input'] == 'image':
+        reqs.extend([
+            "pillow==10.0.0",
+            "torchvision==0.16.0"
+        ])
+    
+    return "\n".join(reqs)
 
 def generate_inference(model_id, model_type):
     """Generate run_inference.py content"""
@@ -126,7 +187,65 @@ def main():
 if __name__ == "__main__":
     main()'''
 
-[Previous generate_module_yaml and generate_readme functions remain the same...]
+def generate_module_yaml(model_id, model_type):
+    """Generate module.yaml content"""
+    return f'''name: {model_id.split('/')[-1]}
+version: 1.0.0
+description: Hugging Face {model_type['task']} model deployment
+
+resources:
+  cpu: 2
+  memory: 4Gi
+  gpu: 1  # Remove if GPU is not needed
+
+input:
+  - name: INPUT_PATH
+    description: Path to the input file ({model_type['input']} format)
+    type: string
+    required: false  # Not required since we can use command line args
+
+output:
+  - name: result
+    description: Model output
+    type: file
+    path: /outputs/result.json'''
+
+def generate_readme(model_id, model_type):
+    """Generate README.md content"""
+    return f'''# Lilypad Module for {model_id}
+
+This module deploys the [{model_id}](https://huggingface.co/{model_id}) model from Hugging Face.
+
+## Setup
+
+1. Build the Docker image:
+   ```bash
+   docker build -t {model_id.split('/')[-1]} .
+   ```
+
+2. Run the module:
+
+   {"For image input:" if model_type["input"] == "image" else "For text input:"}
+   ```bash
+   # Using command line arguments:
+   {"python run_inference.py --image_path=input/image.jpg" if model_type["input"] == "image" else "python run_inference.py --input_text=\"Your text here\""}
+
+   # Using Docker with input directory:
+   docker run -v $(pwd)/input:/workspace/input \\
+             -e INPUT_PATH=/workspace/input/{"image.jpg" if model_type["input"] == "image" else "input.txt"} \\
+             {model_id.split('/')[-1]}
+   ```
+
+3. Deploy to Lilypad:
+   ```bash
+   lilypad module deploy .
+   ```
+
+## Input Format
+
+- Type: {model_type['input']}
+- {"Place image files in the input directory" if model_type["input"] == "image" else "Provide text directly via --input_text or place in input.txt"}
+- Results will be in: output/result.json'''
 
 @app.route('/')
 def index():
