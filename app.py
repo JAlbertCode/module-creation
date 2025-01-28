@@ -1,4 +1,6 @@
-"""Simple web application to generate Lilypad modules from Hugging Face models"""
+"""
+Web application for converting Hugging Face models to Lilypad modules
+"""
 
 from flask import Flask, request, send_file, render_template, jsonify
 from huggingface_hub import HfApi
@@ -12,19 +14,23 @@ from modules import handlers, utils, model_types, validation, config
 
 app = Flask(__name__)
 
-def get_model_info(model_url):
+def get_model_info(model_url: str):
     """Extract model information from Hugging Face URL"""
-    model_id = model_url.split('huggingface.co/')[-1].strip('/')
-    api = HfApi()
-    return api.model_info(model_id)
-
-def detect_model_type(model_info):
-    """Detect the model type from model info"""
-    return model_types.detect_model_type(model_info)
+    try:
+        model_id = model_url.split('huggingface.co/')[-1].strip('/')
+        if not utils.validate_model_id(model_id):
+            raise ValueError("Invalid model ID format")
+        
+        api = HfApi()
+        model_info = api.model_info(model_id)
+        return model_info
+    except Exception as e:
+        raise ValueError(f"Failed to fetch model information: {str(e)}")
 
 @app.route('/')
 def index():
-    return render_template('index.html')
+    """Render the main page"""
+    return render_template('input_form.html')
 
 @app.route('/validate', methods=['POST'])
 def validate_model():
@@ -39,9 +45,11 @@ def validate_model():
         
         # Get model info
         model_info = get_model_info(model_url)
-        model_type = detect_model_type(model_info)
         
-        # Validate model
+        # Detect model type and task
+        model_type = model_types.detect_model_type(model_info)
+        
+        # Validate model compatibility
         validation_result = validation.check_model_compatibility(model_info)
         message = validation.format_validation_message(validation_result)
         
@@ -80,9 +88,9 @@ def generate():
             if key.startswith('config_'):
                 model_configs[key[7:]] = value
         
-        # Get model info
+        # Get model info and detect type
         model_info = get_model_info(model_url)
-        model_type = detect_model_type(model_info)
+        model_type = model_types.detect_model_type(model_info)
         
         # Validate model
         validation_result = validation.check_model_compatibility(model_info)
@@ -90,48 +98,52 @@ def generate():
             message = validation.format_validation_message(validation_result)
             return message, 400
         
-        # Create zip file
+        # Create zip file with module files
         memory_file = BytesIO()
         with zipfile.ZipFile(memory_file, 'w', zipfile.ZIP_DEFLATED) as zf:
             # Add configuration file
             zf.writestr('config.json', json.dumps(model_configs, indent=2))
             
-            # Add files
+            # Add Dockerfile
             zf.writestr('Dockerfile', utils.generate_dockerfile(model_type))
+            
+            # Add requirements.txt
             zf.writestr('requirements.txt', utils.generate_requirements(model_type))
             
             # Get inference code from appropriate handler
-            inference_code = handlers.get_inference_code(model_type['input'], model_info.id, model_type['task'])
-            if inference_code:
-                zf.writestr('run_inference.py', inference_code)
-            else:
-                # Use default text handler if no specific handler exists
-                zf.writestr('run_inference.py', handlers.get_inference_code('text', model_info.id, model_type['task']))
+            inference_code = handlers.get_inference_code(
+                model_type['input'], 
+                model_info.id,
+                model_type['task']
+            )
+            zf.writestr('run_inference.py', inference_code)
             
             # Add Lilypad module template
-            zf.writestr('lilypad_module.json.tmpl', generate_module_template(model_info.id, model_type, model_configs))
+            module_template = config.generate_module_template(
+                model_info.id,
+                model_type,
+                model_configs
+            )
+            zf.writestr('lilypad_module.json.tmpl', module_template)
             
-            # Add README with configuration info
-            zf.writestr('README.md', generate_readme(model_info.id, model_type, validation_result, model_configs))
+            # Add README
+            readme = utils.create_model_card(
+                model_info.id,
+                model_type['task'],
+                model_info
+            )
+            zf.writestr('README.md', readme)
             
             # Add example input directory
-            input_readme = {
-                'text': 'Place text files here',
-                'image': 'Place image files (JPG/PNG) here',
-                'audio': 'Place audio files (WAV/MP3) here',
-                'video': 'Place video files (MP4) here'
-            }.get(model_type['input'], 'Place input files here')
+            input_readme = utils.get_input_description(model_type['task'])
             zf.writestr('input/README.md', input_readme)
             
             # Add test script
-            test_script = f'''#!/bin/bash
-# Build and test the module
-docker build -t {model_info.id.split("/")[-1]} .
-docker run -v $(pwd)/input:/workspace/input {model_info.id.split("/")[-1]}'''
+            test_script = utils.generate_test_script(model_info.id, model_type)
             zf.writestr('test.sh', test_script)
             
+        # Return zip file
         memory_file.seek(0)
-        
         return send_file(
             memory_file,
             mimetype='application/zip',

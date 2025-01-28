@@ -1,152 +1,100 @@
-# Lilypad Module Generator
+# Hugging Face to Lilypad Module Converter
 
-A web-based tool that generates Lilypad deployment modules from Hugging Face models. Simply paste a Hugging Face model URL, and get a ready-to-use Lilypad module.
+This tool helps you convert any Hugging Face model into a Lilypad module that can be run on the Lilypad network. It automatically handles:
 
-## Setup Instructions
+- Model validation and compatibility checking
+- Generation of Dockerfile and requirements
+- Creation of inference code
+- Configuration of Lilypad module template
+- Documentation generation
+
+## Features
+
+- Support for multiple model types:
+  - Text models (classification, generation, translation)
+  - Image models (classification, detection, segmentation)
+  - Audio models (speech recognition, text-to-speech)
+  - Video models (classification)
+  - Multi-modal models (VQA, document QA)
+  - Specialized models (point clouds, graphs)
+
+- Automatic detection of:
+  - Model task and architecture
+  - Hardware requirements
+  - Framework dependencies
+  - Input/output formats
+
+- Generated module includes:
+  - Dockerfile with all dependencies
+  - Inference code tailored to model type
+  - Lilypad module configuration
+  - Documentation and examples
+  - Test scripts
+
+## Installation
 
 1. Clone the repository:
-   ```bash
-   git clone https://github.com/JAlbertCode/module-creation.git
-   cd module-creation
-   ```
+```bash
+git clone https://github.com/yourusername/huggingface-lilypad-converter.git
+cd huggingface-lilypad-converter
+```
 
-2. Create and activate virtual environment:
-   ```bash
-   # Create virtual environment
-   python -m venv venv
-
-   # Activate on Mac/Linux
-   source venv/bin/activate
-
-   # Activate on Windows
-   venv\Scripts\activate
-   ```
+2. Create a virtual environment and activate it:
+```bash
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\\Scripts\\activate
+```
 
 3. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-4. Run the application:
-   ```bash
-   python app.py
-   ```
-
-5. Open in browser:
-   ```
-   http://localhost:5000
-   ```
-
-## Features Checklist
-
-- [x] Core Functionality
-  - [x] Accept Hugging Face model URL input
-  - [x] Detect model type automatically
-  - [x] Generate appropriate files
-  - [x] Package files into zip
-  - [x] Provide clear setup instructions
-
-- [x] Input Method Support
-  - [x] Command line interface for text input (--input_text)
-  - [x] File system input for images
-  - [x] Environment variable support (INPUT_PATH)
-  - [x] Flexible input handling based on model type
-
-- [x] File Generation
-  - [x] Dockerfile with proper dependencies
-  - [x] requirements.txt based on model type
-  - [x] run_inference.py with CLI support
-  - [x] lilypad_module.json.tmpl for Lilypad configuration
-  - [x] README with usage instructions
-
-- [x] Model Type Support
-  - [x] Text Classification
-  - [x] Image Classification
-  - [x] Object Detection
-  - [x] Question Answering
-
-- [x] Error Handling
-  - [x] Invalid URL validation
-  - [x] Model compatibility check
-  - [x] Input validation
-  - [x] Clear error messages
-
-- [ ] Future Enhancements
-  - [ ] Support for more model types
-  - [ ] Custom model configuration options
-  - [ ] Batch processing support
-  - [ ] Performance optimization presets
-
-## Using Generated Modules
-
-After downloading and extracting the generated module:
-
-1. Navigate to module directory:
-   ```bash
-   cd lilypad-your-model-name
-   ```
-
-2. Build Docker image:
-   ```bash
-   docker build -t username/model-name .
-   ```
-
-3. Test locally:
-   ```bash
-   # For text models:
-   python run_inference.py --input_text="Your text here"
-   # Or with Docker:
-   docker run -v $(pwd)/output:/outputs username/model-name -e INPUT_TEXT="Your text here"
-
-   # For image models:
-   python run_inference.py --image_path=input/image.jpg
-   # Or with Docker:
-   docker run -v $(pwd)/input:/workspace/input -v $(pwd)/output:/outputs username/model-name
-   ```
-
-4. Deploy to Lilypad:
-   ```bash
-   # Push Docker image
-   docker push username/model-name
-   
-   # Run on Lilypad network
-   lilypad run username/model-name -i input_text="Your text here"
-   # Or for images:
-   lilypad run username/model-name -i input_path=/workspace/input/image.jpg
-   ```
-
-## Required Files
-
-Your directory structure should look like this:
-```
-module-creation/
-├── app.py
-├── requirements.txt
-├── templates/
-│   └── index.html
-└── README.md
+```bash
+pip install -r requirements.txt
 ```
 
-## Troubleshooting
+## Usage
 
-Common issues:
+1. Start the web interface:
+```bash
+python app.py
+```
 
-1. "No such file or directory":
-   - Make sure you're in the correct directory (module-creation)
-   - Verify all files are present using `ls` or `dir`
+2. Open your browser and navigate to http://localhost:5000
 
-2. Module not found errors:
-   - Ensure virtual environment is activated
-   - Run `pip install -r requirements.txt` again
+3. Enter the Hugging Face model URL (e.g., https://huggingface.co/bert-base-uncased)
 
-3. Port already in use:
-   - Change port in app.py to something else (e.g., 5001)
-   - Kill process using current port
+4. Click "Validate" to check model compatibility
+
+5. Configure model settings if needed
+
+6. Click "Generate" to create the Lilypad module
+
+7. Download and extract the generated zip file
+
+8. Follow the instructions in the generated README.md to test and deploy your module
+
+## Command Line Interface
+
+Coming soon!
+
+## Development
+
+To modify or extend the converter:
+
+1. Model Types: Add new model types in `modules/model_types.py`
+2. Handlers: Add input/output handlers in `modules/handlers.py`
+3. Validation: Add validation rules in `modules/validation.py`
+4. Configuration: Modify module configs in `modules/config.py`
+5. Templates: Update UI templates in `templates/`
 
 ## Contributing
 
-Contributions welcome! Please check existing issues or create new ones.
+Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## License
 
-MIT License - See LICENSE file for details
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Acknowledgments
+
+- [Hugging Face](https://huggingface.co) for their amazing models and APIs
+- [Lilypad Network](https://lilypad.tech) for the decentralized compute platform
+- All the open source libraries used in this project
