@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Lilypad Module Generator</title>
     <link href="https://cdn.tailwindcss.com" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/@github/markdown-toolbar-element@2.2.1/dist/index.min.js"></script>
 </head>
 <body class="bg-gray-100">
     <div class="container mx-auto px-4 py-8 max-w-4xl">
@@ -14,6 +13,7 @@
         <!-- Input Form -->
         <div class="bg-white rounded-lg shadow-md p-6 mb-8">
             <form id="moduleForm" action="/generate" method="POST">
+                <!-- Model URL Input -->
                 <div class="mb-4">
                     <label for="model_url" class="block text-sm font-medium text-gray-700 mb-2">
                         Hugging Face Model URL
@@ -27,22 +27,12 @@
                            required>
                 </div>
 
-                <!-- Quick Examples Dropdown -->
-                <div class="mb-4">
-                    <label for="example_models" class="block text-sm font-medium text-gray-700 mb-2">
-                        Quick Examples
-                    </label>
-                    <select id="example_models" 
-                            class="w-full p-2 border border-gray-300 rounded-md"
-                            onchange="fillExample(this.value)">
-                        <option value="">Select an example model...</option>
-                        <optgroup label="Text Models">
-                            <option value="https://huggingface.co/distilbert/distilbert-base-uncased-finetuned-sst-2-english">Text Classification (DistilBERT)</option>
-                            <option value="https://huggingface.co/gpt2">Text Generation (GPT-2)</option>
-                            <option value="https://huggingface.co/facebook/bart-large-cnn">Summarization (BART)</option>
-                        </optgroup>
-                        <!-- [Previous optgroups remain the same] -->
-                    </select>
+                <!-- Model Configuration Section -->
+                <div id="configSection" class="hidden mb-6">
+                    <h3 class="text-lg font-medium text-gray-900 mb-4">Model Configuration</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="configOptions">
+                        <!-- Configuration options will be inserted here -->
+                    </div>
                 </div>
 
                 <!-- Validation Result -->
@@ -52,64 +42,57 @@
                 <button type="submit" 
                         id="generateButton"
                         disabled
-                        class="w-full bg-gray-400 text-white py-2 px-4 rounded-md cursor-not-allowed">
+                        class="w-full bg-gray-400 text-white py-2 px-4 rounded-md cursor-not-allowed transition-colors">
                     Generate Module Files
                 </button>
-
-                <!-- Loading Indicator -->
-                <div id="generateSpinner" class="hidden mt-4">
-                    <div class="flex justify-center items-center">
-                        <svg class="animate-spin h-5 w-5 mr-3 text-blue-500" viewBox="0 0 24 24">
-                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                        <span>Generating module files...</span>
-                    </div>
-                </div>
             </form>
         </div>
 
-        <!-- [Previous sections remain the same] -->
+        <!-- Instructions -->
+        <div class="bg-white rounded-lg shadow-md p-6">
+            <h2 class="text-lg font-semibold mb-4">Instructions</h2>
+            <ol class="list-decimal pl-5 space-y-4">
+                <li>
+                    <strong>Enter Model URL</strong>
+                    <p class="text-gray-600 mt-1">Paste a Hugging Face model URL (e.g., https://huggingface.co/gpt2)</p>
+                </li>
+                <li>
+                    <strong>Configure Model</strong>
+                    <p class="text-gray-600 mt-1">Adjust model settings if needed (defaults are recommended)</p>
+                </li>
+                <li>
+                    <strong>Generate Files</strong>
+                    <p class="text-gray-600 mt-1">Click generate to create your Lilypad module files</p>
+                </li>
+            </ol>
+        </div>
     </div>
 
     <script>
         let validationTimeout;
         
-        function fillExample(url) {
-            if (url) {
-                document.getElementById('model_url').value = url;
-                validateModel();
-            }
-        }
-
-        function filterModelTypes() {
-            const searchText = document.getElementById('modelSearch').value.toLowerCase();
-            const modelTypes = document.querySelectorAll('.model-type');
-            
-            modelTypes.forEach(type => {
-                const text = type.textContent.toLowerCase();
-                type.style.display = text.includes(searchText) ? '' : 'none';
-            });
-        }
-
         function validateModel() {
             const modelUrl = document.getElementById('model_url').value;
             const validationResult = document.getElementById('validationResult');
             const generateButton = document.getElementById('generateButton');
+            const configSection = document.getElementById('configSection');
             
+            // Clear previous timeout
             if (validationTimeout) {
                 clearTimeout(validationTimeout);
             }
             
-            if (!modelUrl) {
-                validationResult.classList.add('hidden');
-                generateButton.disabled = true;
-                generateButton.classList.remove('bg-blue-500', 'hover:bg-blue-600');
-                generateButton.classList.add('bg-gray-400', 'cursor-not-allowed');
-                return;
-            }
+            // Reset UI state
+            validationResult.classList.add('hidden');
+            configSection.classList.add('hidden');
+            generateButton.disabled = true;
+            generateButton.classList.remove('bg-blue-500', 'hover:bg-blue-600');
+            generateButton.classList.add('bg-gray-400', 'cursor-not-allowed');
             
-            validationResult.classList.remove('hidden', 'bg-green-100', 'bg-red-100', 'bg-yellow-100');
+            if (!modelUrl) return;
+            
+            // Show validation in progress
+            validationResult.classList.remove('hidden');
             validationResult.classList.add('bg-blue-100');
             validationResult.innerHTML = `
                 <div class="flex items-center">
@@ -121,6 +104,7 @@
                 </div>`;
             
             validationTimeout = setTimeout(() => {
+                // Send validation request
                 fetch('/validate', {
                     method: 'POST',
                     body: new FormData(document.getElementById('moduleForm'))
@@ -134,45 +118,57 @@
                         generateButton.disabled = false;
                         generateButton.classList.remove('bg-gray-400', 'cursor-not-allowed');
                         generateButton.classList.add('bg-blue-500', 'hover:bg-blue-600');
+                        
+                        // Show and populate configuration section
+                        if (data.configurations) {
+                            configSection.classList.remove('hidden');
+                            const configOptions = document.getElementById('configOptions');
+                            configOptions.innerHTML = '';
+                            
+                            Object.entries(data.configurations).forEach(([key, config]) => {
+                                const configHtml = `
+                                    <div class="config-option">
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                                            ${config.label}
+                                            <span class="text-xs text-gray-500 ml-1">(${config.description})</span>
+                                        </label>
+                                        ${config.type === 'select' ? `
+                                            <select name="config_${key}" 
+                                                    class="w-full p-2 border border-gray-300 rounded-md">
+                                                ${config.options.map(opt => `
+                                                    <option value="${opt}" ${opt === config.default ? 'selected' : ''}>
+                                                        ${opt}
+                                                    </option>
+                                                `).join('')}
+                                            </select>
+                                        ` : `
+                                            <input type="${config.type}" 
+                                                   name="config_${key}"
+                                                   value="${config.default}"
+                                                   min="${config.min}"
+                                                   max="${config.max}"
+                                                   class="w-full p-2 border border-gray-300 rounded-md">
+                                        `}
+                                    </div>`;
+                                configOptions.insertAdjacentHTML('beforeend', configHtml);
+                            });
+                        }
                     } else {
                         validationResult.classList.add('bg-red-100');
-                        generateButton.disabled = true;
-                        generateButton.classList.remove('bg-blue-500', 'hover:bg-blue-600');
-                        generateButton.classList.add('bg-gray-400', 'cursor-not-allowed');
                     }
                     
                     validationResult.innerHTML = `
-                        <pre class="whitespace-pre-wrap">${data.message}</pre>
-                        ${data.input_requirements ? `
-                            <div class="mt-4 text-sm">
-                                <strong>Input Requirements:</strong>
-                                <ul class="list-disc pl-5 mt-2">
-                                    <li>Supported formats: ${data.input_requirements.supported_formats.join(', ')}</li>
-                                    <li>Maximum file size: ${(data.input_requirements.max_size / (1024*1024)).toFixed(1)}MB</li>
-                                </ul>
-                            </div>
-                        ` : ''}
-                        ${data.requirements ? `
-                            <div class="mt-4 text-sm">
-                                <strong>System Requirements:</strong>
-                                <ul class="list-disc pl-5 mt-2">
-                                    ${data.requirements.gpu.required ? `
-                                        <li>GPU: Required (${data.requirements.gpu.min_vram}GB VRAM minimum)</li>
-                                    ` : '<li>GPU: Optional</li>'}
-                                    <li>RAM: ${data.requirements.ram.minimum}GB minimum</li>
-                                    <li>Storage: ${data.requirements.storage}GB available space</li>
-                                </ul>
-                            </div>
-                        ` : ''}`;
+                        <div class="text-${data.valid ? 'green' : 'red'}-700">
+                            ${data.message}
+                        </div>`;
                 })
                 .catch(error => {
-                    console.error('Validation error:', error);
                     validationResult.classList.remove('bg-blue-100');
                     validationResult.classList.add('bg-red-100');
-                    validationResult.innerHTML = `<div class="text-red-700">Error validating model: ${error.message}</div>`;
-                    generateButton.disabled = true;
-                    generateButton.classList.remove('bg-blue-500', 'hover:bg-blue-600');
-                    generateButton.classList.add('bg-gray-400', 'cursor-not-allowed');
+                    validationResult.innerHTML = `
+                        <div class="text-red-700">
+                            Error validating model: ${error.message}
+                        </div>`;
                 });
             }, 500);
         }
@@ -180,12 +176,15 @@
         // Handle form submission
         document.getElementById('moduleForm').addEventListener('submit', function(e) {
             const generateButton = document.getElementById('generateButton');
-            const generateSpinner = document.getElementById('generateSpinner');
-            
             generateButton.disabled = true;
-            generateButton.classList.remove('bg-blue-500', 'hover:bg-blue-600');
-            generateButton.classList.add('bg-gray-400', 'cursor-not-allowed');
-            generateSpinner.classList.remove('hidden');
+            generateButton.innerHTML = `
+                <div class="flex justify-center items-center">
+                    <svg class="animate-spin h-5 w-5 mr-3" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Generating...
+                </div>`;
         });
     </script>
 </body>

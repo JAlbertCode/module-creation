@@ -8,7 +8,7 @@ import zipfile
 from io import BytesIO
 import traceback
 
-from modules import handlers, utils, model_types, validation
+from modules import handlers, utils, model_types, validation, config
 
 app = Flask(__name__)
 
@@ -28,7 +28,7 @@ def index():
 
 @app.route('/validate', methods=['POST'])
 def validate_model():
-    """Validate a model before generation"""
+    """Validate a model and return configuration options"""
     try:
         model_url = request.form.get('model_url')
         if not model_url or 'huggingface.co' not in model_url:
@@ -48,12 +48,16 @@ def validate_model():
         # Get input requirements
         input_requirements = validation.InputValidator.get_input_requirements(model_type['input'])
         
+        # Get available configurations
+        configurations = config.get_model_configs(model_type)
+        
         return jsonify({
             'valid': validation_result.is_valid,
             'message': message,
             'model_type': model_type,
             'requirements': validation_result.requirements,
-            'input_requirements': input_requirements
+            'input_requirements': input_requirements,
+            'configurations': configurations
         })
         
     except Exception as e:
@@ -69,7 +73,13 @@ def generate():
         model_url = request.form.get('model_url')
         if not model_url or 'huggingface.co' not in model_url:
             return "Invalid model URL", 400
-            
+        
+        # Get model configurations from form
+        model_configs = {}
+        for key, value in request.form.items():
+            if key.startswith('config_'):
+                model_configs[key[7:]] = value
+        
         # Get model info
         model_info = get_model_info(model_url)
         model_type = detect_model_type(model_info)
@@ -83,6 +93,9 @@ def generate():
         # Create zip file
         memory_file = BytesIO()
         with zipfile.ZipFile(memory_file, 'w', zipfile.ZIP_DEFLATED) as zf:
+            # Add configuration file
+            zf.writestr('config.json', json.dumps(model_configs, indent=2))
+            
             # Add files
             zf.writestr('Dockerfile', utils.generate_dockerfile(model_type))
             zf.writestr('requirements.txt', utils.generate_requirements(model_type))
@@ -95,125 +108,27 @@ def generate():
                 # Use default text handler if no specific handler exists
                 zf.writestr('run_inference.py', handlers.get_inference_code('text', model_info.id, model_type['task']))
             
-            # Add validation script
-            validation_script = f'''#!/bin/bash
-# Validate input files before running inference
-
-INPUT_TYPE="{model_type['input']}"
-REQUIRED_FORMATS="{", ".join(validation.InputValidator.SUPPORTED_FORMATS.get(model_type['input'], {}).get('extensions', []))}"
-MAX_SIZE="{validation.InputValidator.SUPPORTED_FORMATS.get(model_type['input'], {}).get('max_size', 0)}"
-
-function validate_file() {{
-    local file=$1
-    
-    # Check file exists
-    if [ ! -f "$file" ]; then
-        echo "Error: File not found: $file"
-        exit 1
-    fi
-    
-    # Check file extension
-    if [[ ! $file =~ \\.({"|".join(validation.InputValidator.SUPPORTED_FORMATS.get(model_type['input'], {}).get('extensions', [])).replace(".", "")})$ ]]; then
-        echo "Error: Invalid file format. Supported formats: $REQUIRED_FORMATS"
-        exit 1
-    fi
-    
-    # Check file size
-    size=$(stat -f%z "$file")
-    if [ $size -gt $MAX_SIZE ]; then
-        echo "Error: File too large. Maximum size: $(($MAX_SIZE/1024/1024))MB"
-        exit 1
-    fi
-}}
-
-# Validate input directory
-if [ -d "/workspace/input" ]; then
-    for file in /workspace/input/*; do
-        if [ -f "$file" ]; then
-            validate_file "$file"
-        fi
-    done
-fi
-
-echo "Input validation passed"
-'''
-            zf.writestr('validate_input.sh', validation_script)
+            # Add Lilypad module template
+            zf.writestr('lilypad_module.json.tmpl', generate_module_template(model_info.id, model_type, model_configs))
             
-            zf.writestr('lilypad_module.json.tmpl', generate_module_template(model_info.id, model_type))
-            zf.writestr('README.md', generate_readme(model_info.id, model_type, validation_result))
+            # Add README with configuration info
+            zf.writestr('README.md', generate_readme(model_info.id, model_type, validation_result, model_configs))
             
-            # Add example input directory and instructions based on type
+            # Add example input directory
             input_readme = {
-                'text': 'Place your text files here if not using command line input',
-                'image': 'Place your image files (JPG/PNG) here',
-                'audio': 'Place your audio files (WAV/MP3) here',
-                'video': 'Place your video files (MP4) here',
-                'point-cloud': 'Place your 3D files (PLY/OBJ/STL) here',
-                'time-series': 'Place your time series data (CSV/JSON) here',
-                'tabular': 'Place your data files (CSV/JSON/Excel) here',
-                'document-text-pair': 'Place your document files (PDF) here',
-                'image-text-pair': 'Place your image files here',
+                'text': 'Place text files here',
+                'image': 'Place image files (JPG/PNG) here',
+                'audio': 'Place audio files (WAV/MP3) here',
+                'video': 'Place video files (MP4) here'
             }.get(model_type['input'], 'Place input files here')
-            
             zf.writestr('input/README.md', input_readme)
-
+            
             # Add test script
             test_script = f'''#!/bin/bash
-set -e
-
-# Validate inputs
-./validate_input.sh
-
-# Build the Docker image
-echo "Building Docker image..."
+# Build and test the module
 docker build -t {model_info.id.split("/")[-1]} .
-
-# Run inference with example input
-echo "Running inference..."
-docker run -v $(pwd)/input:/workspace/input \\
-          -v $(pwd)/output:/outputs \\
-          {model_info.id.split("/")[-1]}
-
-echo "Checking results..."
-cat output/result.json
-
-echo "Test complete."'''
+docker run -v $(pwd)/input:/workspace/input {model_info.id.split("/")[-1]}'''
             zf.writestr('test.sh', test_script)
-            
-            # Add GitHub Actions workflow for testing
-            github_workflow = f'''name: Test Module
-
-on: [push, pull_request]
-
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    
-    steps:
-    - uses: actions/checkout@v2
-    
-    - name: Set up Docker
-      uses: docker/setup-buildx-action@v1
-    
-    - name: Build image
-      run: docker build -t test-module .
-    
-    - name: Validate example inputs
-      run: |
-        chmod +x validate_input.sh
-        ./validate_input.sh
-    
-    - name: Run test inference
-      run: |
-        mkdir -p output
-        docker run -v ${{{{ github.workspace }}}}/input:/workspace/input \\
-                  -v ${{{{ github.workspace }}}}/output:/outputs \\
-                  test-module
-        
-    - name: Check results
-      run: cat output/result.json'''
-            
-            zf.writestr('.github/workflows/test.yml', github_workflow)
             
         memory_file.seek(0)
         
@@ -225,9 +140,8 @@ jobs:
         )
         
     except Exception as e:
-        # Get the full error traceback
         error_traceback = traceback.format_exc()
-        print(f"Error: {error_traceback}")  # Print to console for debugging
+        print(f"Error: {error_traceback}")
         return f"Error: {str(e)}\n\nTraceback: {error_traceback}", 500
 
 if __name__ == '__main__':
