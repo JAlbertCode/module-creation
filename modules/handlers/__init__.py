@@ -1,12 +1,35 @@
 """Handlers for different types of model inputs"""
 
-from . import audio, video, multimodal
+from . import audio, video, multimodal, structured, point_cloud, time_series
 
 INPUT_TYPE_HANDLERS = {
+    # Basic types
+    'text': None,  # Uses default handler
+    'image': None, # Uses default handler
+    
+    # Audio/Video
     'audio': audio,
     'video': video,
+    
+    # Multimodal
     'image-text-pair': multimodal,
-    'document-text-pair': multimodal
+    'document-text-pair': multimodal,
+    
+    # Structured data
+    'tabular': structured,
+    'table': structured,
+    'json': structured,
+    'csv': structured,
+    
+    # 3D data
+    'point-cloud': point_cloud,
+    'mesh': point_cloud,
+    '3d': point_cloud,
+    
+    # Time series
+    'time-series': time_series,
+    'temporal': time_series,
+    'sequence': time_series
 }
 
 def get_handler(input_type):
