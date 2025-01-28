@@ -12,7 +12,7 @@
         
         <!-- Input Form -->
         <div class="bg-white rounded-lg shadow-md p-6 mb-8">
-            <form action="/generate" method="POST">
+            <form action="/generate" method="POST" id="moduleForm">
                 <div class="mb-4">
                     <label for="model_url" class="block text-sm font-medium text-gray-700 mb-2">
                         Hugging Face Model URL
@@ -24,6 +24,45 @@
                            placeholder="https://huggingface.co/model-name"
                            required>
                 </div>
+
+                <!-- Quick Examples Dropdown -->
+                <div class="mb-4">
+                    <label for="example_models" class="block text-sm font-medium text-gray-700 mb-2">
+                        Quick Examples
+                    </label>
+                    <select id="example_models" 
+                            class="w-full p-2 border border-gray-300 rounded-md"
+                            onchange="fillExample(this.value)">
+                        <option value="">Select an example model...</option>
+                        <optgroup label="Text Models">
+                            <option value="https://huggingface.co/distilbert/distilbert-base-uncased-finetuned-sst-2-english">Text Classification (DistilBERT)</option>
+                            <option value="https://huggingface.co/gpt2">Text Generation (GPT-2)</option>
+                            <option value="https://huggingface.co/facebook/bart-large-cnn">Summarization (BART)</option>
+                        </optgroup>
+                        <optgroup label="Image Models">
+                            <option value="https://huggingface.co/microsoft/resnet-50">Image Classification (ResNet)</option>
+                            <option value="https://huggingface.co/facebook/detr-resnet-50">Object Detection (DETR)</option>
+                            <option value="https://huggingface.co/stabilityai/stable-diffusion-2">Text to Image (Stable Diffusion)</option>
+                        </optgroup>
+                        <optgroup label="Audio Models">
+                            <option value="https://huggingface.co/openai/whisper-small">Speech Recognition (Whisper)</option>
+                            <option value="https://huggingface.co/microsoft/wavlm-base">Audio Classification (WavLM)</option>
+                        </optgroup>
+                        <optgroup label="Video Models">
+                            <option value="https://huggingface.co/facebook/timesformer-base-finetuned-k400">Video Classification (TimeSformer)</option>
+                            <option value="https://huggingface.co/damo-vilab/text-to-video-ms-1.7b">Text to Video (ModelScope)</option>
+                        </optgroup>
+                        <optgroup label="3D/Point Cloud">
+                            <option value="https://huggingface.co/openai/point-e">3D Point Cloud Generation (Point-E)</option>
+                            <option value="https://huggingface.co/Intel/point-cloud-segmentation">Point Cloud Segmentation</option>
+                        </optgroup>
+                        <optgroup label="Multimodal">
+                            <option value="https://huggingface.co/dandelin/vilt-b32-finetuned-vqa">Visual Question Answering (ViLT)</option>
+                            <option value="https://huggingface.co/microsoft/trocr-base-printed">Document OCR (TrOCR)</option>
+                        </optgroup>
+                    </select>
+                </div>
+
                 <button type="submit" 
                         class="w-full bg-blue-500 text-white py-2 px-4 rounded-md hover:bg-blue-600 transition-colors">
                     Generate Module Files
@@ -34,78 +73,156 @@
         <!-- Supported Model Types -->
         <div class="bg-white rounded-lg shadow-md p-6 mb-8">
             <h2 class="text-lg font-semibold mb-4">Supported Model Types</h2>
-            <div class="grid md:grid-cols-2 gap-6">
-                <div>
-                    <h3 class="text-md font-semibold mb-2">Text Models</h3>
+            
+            <!-- Search Box -->
+            <div class="mb-4">
+                <input type="text" 
+                       id="modelSearch" 
+                       placeholder="Search model types..."
+                       class="w-full p-2 border border-gray-300 rounded-md"
+                       onkeyup="filterModelTypes()">
+            </div>
+
+            <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6" id="modelTypes">
+                <div class="model-type">
+                    <h3 class="text-md font-semibold mb-2">Text Processing</h3>
                     <ul class="list-disc pl-5 space-y-1">
                         <li>Text Classification</li>
                         <li>Text Generation</li>
                         <li>Question Answering</li>
                         <li>Summarization</li>
                         <li>Translation</li>
-                        <li>Text-to-Text Generation</li>
-                        <li>Token Classification</li>
+                        <li>Named Entity Recognition</li>
+                        <li>Text-to-SQL</li>
+                        <li>Fill-Mask</li>
+                        <li>Zero-shot Classification</li>
                     </ul>
                 </div>
-                <div>
-                    <h3 class="text-md font-semibold mb-2">Image Models</h3>
+
+                <div class="model-type">
+                    <h3 class="text-md font-semibold mb-2">Image Processing</h3>
                     <ul class="list-disc pl-5 space-y-1">
                         <li>Image Classification</li>
                         <li>Object Detection</li>
                         <li>Image Segmentation</li>
-                        <li>Image-to-Text</li>
-                        <li>Text-to-Image</li>
-                        <li>Image-to-Image</li>
+                        <li>Text to Image</li>
+                        <li>Image to Image</li>
+                        <li>Depth Estimation</li>
+                        <li>Super Resolution</li>
+                        <li>Background Removal</li>
+                        <li>Pose Detection</li>
                     </ul>
                 </div>
-                <div>
-                    <h3 class="text-md font-semibold mb-2">Audio & Video Models</h3>
+
+                <div class="model-type">
+                    <h3 class="text-md font-semibold mb-2">Audio Processing</h3>
                     <ul class="list-disc pl-5 space-y-1">
                         <li>Speech Recognition</li>
                         <li>Audio Classification</li>
-                        <li>Text-to-Speech</li>
-                        <li>Video Classification</li>
-                        <li>Text-to-Video</li>
+                        <li>Text to Speech</li>
+                        <li>Sound Event Detection</li>
+                        <li>Music Generation</li>
+                        <li>Voice Conversion</li>
+                        <li>Speech Enhancement</li>
+                        <li>Audio Separation</li>
                     </ul>
                 </div>
-                <div>
-                    <h3 class="text-md font-semibold mb-2">Multimodal Models</h3>
+
+                <div class="model-type">
+                    <h3 class="text-md font-semibold mb-2">Video Processing</h3>
+                    <ul class="list-disc pl-5 space-y-1">
+                        <li>Video Classification</li>
+                        <li>Text to Video</li>
+                        <li>Video Motion Transfer</li>
+                        <li>Video Super Resolution</li>
+                        <li>Video Stabilization</li>
+                        <li>Object Tracking</li>
+                        <li>Action Recognition</li>
+                        <li>Scene Detection</li>
+                    </ul>
+                </div>
+
+                <div class="model-type">
+                    <h3 class="text-md font-semibold mb-2">3D & Point Cloud</h3>
+                    <ul class="list-disc pl-5 space-y-1">
+                        <li>Point Cloud Classification</li>
+                        <li>Point Cloud Segmentation</li>
+                        <li>3D Object Detection</li>
+                        <li>3D Scene Understanding</li>
+                        <li>3D Mesh Reconstruction</li>
+                        <li>Image to 3D</li>
+                    </ul>
+                </div>
+
+                <div class="model-type">
+                    <h3 class="text-md font-semibold mb-2">Time Series & Data</h3>
+                    <ul class="list-disc pl-5 space-y-1">
+                        <li>Time Series Forecasting</li>
+                        <li>Anomaly Detection</li>
+                        <li>Event Detection</li>
+                        <li>Trend Prediction</li>
+                        <li>Tabular Classification</li>
+                        <li>Tabular Regression</li>
+                    </ul>
+                </div>
+
+                <div class="model-type">
+                    <h3 class="text-md font-semibold mb-2">Graph & Network</h3>
+                    <ul class="list-disc pl-5 space-y-1">
+                        <li>Graph Classification</li>
+                        <li>Node Classification</li>
+                        <li>Link Prediction</li>
+                        <li>Graph Generation</li>
+                        <li>Molecular Property Prediction</li>
+                        <li>Protein Structure Prediction</li>
+                    </ul>
+                </div>
+
+                <div class="model-type">
+                    <h3 class="text-md font-semibold mb-2">Multimodal</h3>
                     <ul class="list-disc pl-5 space-y-1">
                         <li>Visual Question Answering</li>
                         <li>Document Question Answering</li>
-                        <li>Image-Text Pairs</li>
-                        <li>Document-Text Pairs</li>
+                        <li>Audio-Video Sync</li>
+                        <li>Text-Audio-Video Alignment</li>
+                        <li>Sign Language Recognition</li>
+                        <li>Cross-modal Retrieval</li>
+                    </ul>
+                </div>
+
+                <div class="model-type">
+                    <h3 class="text-md font-semibold mb-2">Reinforcement Learning</h3>
+                    <ul class="list-disc pl-5 space-y-1">
+                        <li>Policy Models</li>
+                        <li>Value Function Models</li>
+                        <li>World Models</li>
+                        <li>State-Action Prediction</li>
                     </ul>
                 </div>
             </div>
         </div>
 
-        <!-- Instructions -->
+        <!-- Usage Instructions -->
         <div class="bg-white rounded-lg shadow-md p-6">
             <h2 class="text-lg font-semibold mb-4">Usage Instructions</h2>
             <ol class="list-decimal pl-5 space-y-4">
                 <li>
-                    <strong>Get Model URL</strong>
-                    <p class="text-gray-600 mt-1">Copy the URL from Hugging Face for any supported model type</p>
+                    <strong>Select Model</strong>
+                    <p class="text-gray-600 mt-1">Choose a model from Hugging Face or use one of our examples</p>
                 </li>
                 <li>
-                    <strong>Generate Files</strong>
-                    <p class="text-gray-600 mt-1">Paste the URL and click "Generate Module Files"</p>
+                    <strong>Generate Module</strong>
+                    <p class="text-gray-600 mt-1">Click Generate to create your Lilypad module</p>
                 </li>
                 <li>
-                    <strong>Deploy to Lilypad</strong>
+                    <strong>Deploy Module</strong>
                     <div class="bg-gray-50 p-4 rounded-md mt-2">
                         <code class="block whitespace-pre text-sm"># Extract the files
 unzip lilypad-module.zip
 
-# Build and push Docker image
+# Build and deploy
 docker build -t username/model-name .
 docker push username/model-name:latest
-
-# Test locally
-docker run -v $(pwd)/input:/workspace/input \
-          -v $(pwd)/output:/outputs \
-          username/model-name
 
 # Run on Lilypad
 lilypad run username/model-name \
@@ -115,29 +232,28 @@ lilypad run username/model-name \
                 </li>
             </ol>
         </div>
-
-        <!-- Example Models -->
-        <div class="mt-8 bg-white rounded-lg shadow-md p-6">
-            <h2 class="text-lg font-semibold mb-4">Example Models</h2>
-            <div class="grid gap-4">
-                <div class="border-b pb-2">
-                    <h3 class="font-medium">Text Classification</h3>
-                    <code class="text-sm text-gray-600">https://huggingface.co/distilbert/distilbert-base-uncased-finetuned-sst-2-english</code>
-                </div>
-                <div class="border-b pb-2">
-                    <h3 class="font-medium">Image Classification</h3>
-                    <code class="text-sm text-gray-600">https://huggingface.co/microsoft/resnet-50</code>
-                </div>
-                <div class="border-b pb-2">
-                    <h3 class="font-medium">Speech Recognition</h3>
-                    <code class="text-sm text-gray-600">https://huggingface.co/openai/whisper-small</code>
-                </div>
-                <div>
-                    <h3 class="font-medium">Visual Question Answering</h3>
-                    <code class="text-sm text-gray-600">https://huggingface.co/dandelin/vilt-b32-finetuned-vqa</code>
-                </div>
-            </div>
-        </div>
     </div>
+
+    <script>
+        function fillExample(url) {
+            if (url) {
+                document.getElementById('model_url').value = url;
+            }
+        }
+
+        function filterModelTypes() {
+            const searchText = document.getElementById('modelSearch').value.toLowerCase();
+            const modelTypes = document.querySelectorAll('.model-type');
+            
+            modelTypes.forEach(type => {
+                const text = type.textContent.toLowerCase();
+                if (text.includes(searchText)) {
+                    type.style.display = '';
+                } else {
+                    type.style.display = 'none';
+                }
+            });
+        }
+    </script>
 </body>
 </html>
