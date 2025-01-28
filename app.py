@@ -21,7 +21,9 @@ def get_model_info(model_url):
 def detect_model_type(model_info):
     """Detect the model type from model info"""
     pipeline_mapping = {
-        # Text Tasks
+        # Basic Text Tasks
+
+        # Basic Text Tasks
         'text-classification': {'task': 'text-classification', 'input': 'text'},
         'text-generation': {'task': 'text-generation', 'input': 'text'},
         'question-answering': {'task': 'question-answering', 'input': 'text'},
@@ -31,22 +33,58 @@ def detect_model_type(model_info):
         'sentence-similarity': {'task': 'sentence-similarity', 'input': 'text-pair'},
         'token-classification': {'task': 'token-classification', 'input': 'text'},
         
-        # Image Tasks
+        # Advanced Text Tasks
+        'fill-mask': {'task': 'fill-mask', 'input': 'text'},
+        'zero-shot-classification': {'task': 'zero-shot-classification', 'input': 'text'},
+        'text-to-sql': {'task': 'text-to-sql', 'input': 'text'},
+        'named-entity-recognition': {'task': 'ner', 'input': 'text'},
+        'table-question-answering': {'task': 'table-qa', 'input': 'tabular'},
+        'text-to-text': {'task': 'text2text-generation', 'input': 'text'},
+        'few-shot-classification': {'task': 'few-shot-classification', 'input': 'text'},
+        'conversational': {'task': 'conversational', 'input': 'text'},
+        
+        # Basic Image Tasks
         'image-classification': {'task': 'image-classification', 'input': 'image'},
         'object-detection': {'task': 'object-detection', 'input': 'image'},
         'image-segmentation': {'task': 'image-segmentation', 'input': 'image'},
         'image-to-text': {'task': 'image-to-text', 'input': 'image'},
         'text-to-image': {'task': 'text-to-image', 'input': 'text'},
         'image-to-image': {'task': 'image-to-image', 'input': 'image'},
+
+        # Advanced Image Tasks
+        'depth-estimation': {'task': 'depth-estimation', 'input': 'image'},
+        'image-to-3d': {'task': 'image-to-3d', 'input': 'image'},
+        'style-transfer': {'task': 'style-transfer', 'input': 'image'},
+        'super-resolution': {'task': 'super-resolution', 'input': 'image'},
+        'inpainting': {'task': 'inpainting', 'input': 'image'},
+        'background-removal': {'task': 'background-removal', 'input': 'image'},
+        'pose-detection': {'task': 'pose-detection', 'input': 'image'},
+        'face-detection': {'task': 'face-detection', 'input': 'image'},
+        'ocr': {'task': 'ocr', 'input': 'image'},
         
         # Audio Tasks
         'automatic-speech-recognition': {'task': 'speech-recognition', 'input': 'audio'},
         'audio-classification': {'task': 'audio-classification', 'input': 'audio'},
         'text-to-speech': {'task': 'text-to-speech', 'input': 'text'},
+        'sound-event-detection': {'task': 'sound-detection', 'input': 'audio'},
+        'music-generation': {'task': 'music-generation', 'input': 'text'},
+        'voice-conversion': {'task': 'voice-conversion', 'input': 'audio'},
+        'speech-enhancement': {'task': 'speech-enhancement', 'input': 'audio'},
+        'audio-super-resolution': {'task': 'audio-super-resolution', 'input': 'audio'},
+        'audio-separation': {'task': 'audio-separation', 'input': 'audio'},
+        'voice-activity-detection': {'task': 'voice-activity-detection', 'input': 'audio'},
         
         # Video Tasks
         'video-classification': {'task': 'video-classification', 'input': 'video'},
         'text-to-video': {'task': 'text-to-video', 'input': 'text'},
+        'video-inpainting': {'task': 'video-inpainting', 'input': 'video'},
+        'video-motion-transfer': {'task': 'video-motion-transfer', 'input': 'video'},
+        'video-super-resolution': {'task': 'video-super-resolution', 'input': 'video'},
+        'video-stabilization': {'task': 'video-stabilization', 'input': 'video'},
+        'video-frame-interpolation': {'task': 'frame-interpolation', 'input': 'video'},
+        'video-object-tracking': {'task': 'object-tracking', 'input': 'video'},
+        'action-recognition': {'task': 'action-recognition', 'input': 'video'},
+        'scene-detection': {'task': 'scene-detection', 'input': 'video'},
         
         # Code Tasks
         'text-to-code': {'task': 'text-to-code', 'input': 'text'},
