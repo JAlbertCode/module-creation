@@ -7,7 +7,7 @@
     <link href="https://cdn.tailwindcss.com" rel="stylesheet">
 </head>
 <body class="bg-gray-100">
-    <div class="container mx-auto px-4 py-8 max-w-2xl">
+    <div class="container mx-auto px-4 py-8 max-w-4xl">
         <h1 class="text-3xl font-bold text-center mb-8">Lilypad Module Generator</h1>
         
         <!-- Input Form -->
@@ -21,7 +21,7 @@
                            id="model_url" 
                            name="model_url"
                            class="w-full p-2 border border-gray-300 rounded-md"
-                           placeholder="https://huggingface.co/microsoft/resnet-50"
+                           placeholder="https://huggingface.co/model-name"
                            required>
                 </div>
                 <button type="submit" 
@@ -31,45 +31,112 @@
             </form>
         </div>
 
+        <!-- Supported Model Types -->
+        <div class="bg-white rounded-lg shadow-md p-6 mb-8">
+            <h2 class="text-lg font-semibold mb-4">Supported Model Types</h2>
+            <div class="grid md:grid-cols-2 gap-6">
+                <div>
+                    <h3 class="text-md font-semibold mb-2">Text Models</h3>
+                    <ul class="list-disc pl-5 space-y-1">
+                        <li>Text Classification</li>
+                        <li>Text Generation</li>
+                        <li>Question Answering</li>
+                        <li>Summarization</li>
+                        <li>Translation</li>
+                        <li>Text-to-Text Generation</li>
+                        <li>Token Classification</li>
+                    </ul>
+                </div>
+                <div>
+                    <h3 class="text-md font-semibold mb-2">Image Models</h3>
+                    <ul class="list-disc pl-5 space-y-1">
+                        <li>Image Classification</li>
+                        <li>Object Detection</li>
+                        <li>Image Segmentation</li>
+                        <li>Image-to-Text</li>
+                        <li>Text-to-Image</li>
+                        <li>Image-to-Image</li>
+                    </ul>
+                </div>
+                <div>
+                    <h3 class="text-md font-semibold mb-2">Audio & Video Models</h3>
+                    <ul class="list-disc pl-5 space-y-1">
+                        <li>Speech Recognition</li>
+                        <li>Audio Classification</li>
+                        <li>Text-to-Speech</li>
+                        <li>Video Classification</li>
+                        <li>Text-to-Video</li>
+                    </ul>
+                </div>
+                <div>
+                    <h3 class="text-md font-semibold mb-2">Multimodal Models</h3>
+                    <ul class="list-disc pl-5 space-y-1">
+                        <li>Visual Question Answering</li>
+                        <li>Document Question Answering</li>
+                        <li>Image-Text Pairs</li>
+                        <li>Document-Text Pairs</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
         <!-- Instructions -->
         <div class="bg-white rounded-lg shadow-md p-6">
-            <h2 class="text-lg font-semibold mb-4">Instructions</h2>
+            <h2 class="text-lg font-semibold mb-4">Usage Instructions</h2>
             <ol class="list-decimal pl-5 space-y-4">
                 <li>
                     <strong>Get Model URL</strong>
-                    <p class="text-gray-600 mt-1">Copy the URL from Hugging Face (e.g., https://huggingface.co/microsoft/resnet-50)</p>
+                    <p class="text-gray-600 mt-1">Copy the URL from Hugging Face for any supported model type</p>
                 </li>
                 <li>
                     <strong>Generate Files</strong>
                     <p class="text-gray-600 mt-1">Paste the URL and click "Generate Module Files"</p>
                 </li>
                 <li>
-                    <strong>Setup</strong>
+                    <strong>Deploy to Lilypad</strong>
                     <div class="bg-gray-50 p-4 rounded-md mt-2">
                         <code class="block whitespace-pre text-sm"># Extract the files
 unzip lilypad-module.zip
 
-# Build the Docker image
-docker build -t my-model .
+# Build and push Docker image
+docker build -t username/model-name .
+docker push username/model-name:latest
 
-# Create input directory
-mkdir input
+# Test locally
+docker run -v $(pwd)/input:/workspace/input \
+          -v $(pwd)/output:/outputs \
+          username/model-name
 
-# Add your input file
-# For text models: Add text file to input/
-# For image models: Add image to input/
-
-# Run locally
-docker run -v $(pwd)/input:/workspace/input \\
-          -v $(pwd)/output:/outputs \\
-          -e INPUT_PATH=/workspace/input/input.txt \\
-          my-model
-
-# Deploy to Lilypad
-lilypad module deploy .</code>
+# Run on Lilypad
+lilypad run username/model-name \
+  -i input_path=/workspace/input/file.ext \
+  -i input_text="Your text here"</code>
                     </div>
                 </li>
             </ol>
+        </div>
+
+        <!-- Example Models -->
+        <div class="mt-8 bg-white rounded-lg shadow-md p-6">
+            <h2 class="text-lg font-semibold mb-4">Example Models</h2>
+            <div class="grid gap-4">
+                <div class="border-b pb-2">
+                    <h3 class="font-medium">Text Classification</h3>
+                    <code class="text-sm text-gray-600">https://huggingface.co/distilbert/distilbert-base-uncased-finetuned-sst-2-english</code>
+                </div>
+                <div class="border-b pb-2">
+                    <h3 class="font-medium">Image Classification</h3>
+                    <code class="text-sm text-gray-600">https://huggingface.co/microsoft/resnet-50</code>
+                </div>
+                <div class="border-b pb-2">
+                    <h3 class="font-medium">Speech Recognition</h3>
+                    <code class="text-sm text-gray-600">https://huggingface.co/openai/whisper-small</code>
+                </div>
+                <div>
+                    <h3 class="font-medium">Visual Question Answering</h3>
+                    <code class="text-sm text-gray-600">https://huggingface.co/dandelin/vilt-b32-finetuned-vqa</code>
+                </div>
+            </div>
         </div>
     </div>
 </body>

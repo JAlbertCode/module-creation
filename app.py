@@ -8,6 +8,8 @@ import zipfile
 from io import BytesIO
 import traceback
 
+from modules import handlers, utils
+
 app = Flask(__name__)
 
 def get_model_info(model_url):
@@ -59,203 +61,29 @@ def detect_model_type(model_info):
         if tag in pipeline_mapping:
             return pipeline_mapping[tag]
     
+    # If no specific tag is found, try to infer from model card
+    if model_info.cardData:
+        if 'audio' in str(model_info.cardData).lower():
+            return {'task': 'audio-classification', 'input': 'audio'}
+        if 'video' in str(model_info.cardData).lower():
+            return {'task': 'video-classification', 'input': 'video'}
+        if 'image' in str(model_info.cardData).lower():
+            return {'task': 'image-classification', 'input': 'image'}
+    
     return {'task': 'text-classification', 'input': 'text'}  # Default
-
-def generate_dockerfile():
-    """Generate Dockerfile content"""
-    return '''FROM python:3.9-slim
-
-# Install system dependencies
-RUN apt-get update && apt-get install -y \\
-    libgl1-mesa-glx \\
-    libglib2.0-0 \\
-    && rm -rf /var/lib/apt/lists/*
-
-# Set working directory
-WORKDIR /workspace
-
-# Install dependencies
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Create directories
-RUN mkdir -p /outputs /workspace/input
-
-# Copy inference script
-COPY run_inference.py .
-
-# Set entrypoint
-ENTRYPOINT ["python", "/workspace/run_inference.py"]'''
-
-def generate_requirements(model_type):
-    """Generate requirements.txt content"""
-    reqs = [
-        "transformers==4.36.0",
-        "torch==2.1.0",
-        "numpy<2.0.0"
-    ]
-    
-    # Add input type specific requirements
-    input_type = model_type['input']
-    if input_type == 'image' or input_type.startswith('image-'):
-        reqs.extend([
-            "pillow==10.0.0",
-            "torchvision==0.16.0"
-        ])
-    elif input_type == 'audio':
-        reqs.extend([
-            "librosa==0.10.1",
-            "soundfile==0.12.1"
-        ])
-    elif input_type == 'video':
-        reqs.extend([
-            "opencv-python==4.8.0.74",
-            "decord==0.6.0"
-        ])
-    elif input_type == 'document-text-pair':
-        reqs.extend([
-            "pdf2image==1.16.3",
-            "pytesseract==0.3.10"
-        ])
-    
-    return "\n".join(reqs)
-
-def generate_inference(model_id, model_type):
-    """Generate run_inference.py content"""
-    input_type = model_type['input']
-    
-    # Common imports for all types
-    base_imports = '''import os
-import json
-from transformers import pipeline
-import torch
-import argparse'''
-    
-    # Add type-specific imports
-    if input_type in ['image', 'image-text-pair', 'document-text-pair'] or input_type.startswith('image-'):
-        base_imports += '''
-from PIL import Image'''
-    elif input_type == 'audio':
-        base_imports += '''
-import librosa
-import soundfile as sf'''
-    elif input_type == 'video':
-        base_imports += '''
-import cv2
-import decord'''
-    
-    if input_type == 'image' or input_type.startswith('image-'):
-        return f'''import os
-import json
-from transformers import pipeline
-import torch
-from PIL import Image
-import argparse
-
-def get_output_dir():
-    """Get output directory based on environment"""
-    return '/outputs' if os.path.exists('/.dockerenv') else './outputs'
-
-def main():
-    parser = argparse.ArgumentParser(description='Run inference on {model_type["task"]} model')
-    parser.add_argument('--image_path', help='Path to input image')
-    args = parser.parse_args()
-
-    input_path = args.image_path or os.environ.get('INPUT_PATH')
-    if not input_path:
-        raise ValueError("Please provide image path via --image_path or INPUT_PATH environment variable")
-    
-    try:
-        print("Loading model...")
-        device = 0 if torch.cuda.is_available() else -1
-        print(f"Device set to use {{\'gpu\' if torch.cuda.is_available() else \'cpu\'}}")
-        
-        pipe = pipeline(
-            task="{model_type['task']}", 
-            model="{model_id}",
-            device=device
-        )
-        
-        print("Running inference...")
-        image = Image.open(input_path)
-        result = pipe(image)
-        output = {{"result": result, "status": "success"}}
-        print("Inference complete.")
-        
-    except Exception as e:
-        output = {{"error": str(e), "status": "error"}}
-        print(f"Error: {{e}}")
-    
-    # Use appropriate output directory
-    output_dir = get_output_dir()
-    os.makedirs(output_dir, exist_ok=True)
-    output_path = os.path.join(output_dir, 'result.json')
-    
-    with open(output_path, 'w') as f:
-        json.dump(output, f, indent=2)
-    print(f"Results saved to {{output_path}}")
-
-if __name__ == "__main__":
-    main()'''
-    else:
-        return f'''import os
-import json
-from transformers import pipeline
-import torch
-import argparse
-
-def get_output_dir():
-    """Get output directory based on environment"""
-    return '/outputs' if os.path.exists('/.dockerenv') else './outputs'
-
-def main():
-    parser = argparse.ArgumentParser(description='Run inference on {model_type["task"]} model')
-    parser.add_argument('--input_text', help='Input text for the model')
-    args = parser.parse_args()
-    
-    input_text = args.input_text
-    if not input_text:
-        input_path = os.environ.get('INPUT_PATH')
-        if input_path:
-            with open(input_path, 'r') as f:
-                input_text = f.read()
-        else:
-            raise ValueError("Please provide input via --input_text argument")
-    
-    try:
-        print("Loading model...")
-        device = 0 if torch.cuda.is_available() else -1
-        print(f"Device set to use {{\'gpu\' if torch.cuda.is_available() else \'cpu\'}}")
-        
-        pipe = pipeline(
-            task="{model_type['task']}", 
-            model="{model_id}",
-            device=device
-        )
-        
-        print("Running inference...")
-        result = pipe(input_text)
-        output = {{"result": result, "status": "success"}}
-        print("Inference complete.")
-        
-    except Exception as e:
-        output = {{"error": str(e), "status": "error"}}
-        print(f"Error: {{e}}")
-    
-    # Use appropriate output directory
-    output_dir = get_output_dir()
-    os.makedirs(output_dir, exist_ok=True)
-    output_path = os.path.join(output_dir, 'result.json')
-    
-    with open(output_path, 'w') as f:
-        json.dump(output, f, indent=2)
-    print(f"Results saved to {{output_path}}")
-
-if __name__ == "__main__":
-    main()'''
 
 def generate_module_template(model_id, model_type):
     """Generate lilypad_module.json.tmpl content"""
+    input_vars = []
+    
+    if model_type['input'] in ['text', 'text-pair']:
+        input_vars.append('{{ if .input_text }}"INPUT_TEXT={{ js .input_text }}"{{ end }}')
+    
+    if model_type['input'] in ['image', 'video', 'audio', 'document-text-pair', 'image-text-pair']:
+        input_vars.append('{{ if .input_path }}"INPUT_PATH={{ js .input_path }}"{{ else }}"INPUT_PATH=/workspace/input/default_input"{{ end }}')
+
+    env_vars = ',\n                    '.join(input_vars)
+
     return f'''{{
     "machine": {{
         "gpu": 1,
@@ -272,8 +100,7 @@ def generate_module_template(model_id, model_type):
                 "Entrypoint": ["python", "/workspace/run_inference.py"],
                 "WorkingDirectory": "/workspace",
                 "EnvironmentVariables": [
-                    {{ if .input_path }}"INPUT_PATH={{ js .input_path }}"{{ else }}"INPUT_PATH=/workspace/input/default_input.{model_type['input']}"{{ end }},
-                    {{ if .input_text }}"INPUT_TEXT={{ js .input_text }}"{{ end }}
+                    {env_vars}
                 ],
                 "Image": "username/{model_id.split('/')[-1].lower()}:latest"
             }},
@@ -299,41 +126,109 @@ def generate_module_template(model_id, model_type):
 }}'''
 
 def generate_readme(model_id, model_type):
-    """Generate README.md content"""
+    """Generate README.md content with type-specific instructions"""
+    input_instructions = {
+        'text': "Provide text directly via --input_text or in input/text.txt file",
+        'image': "Place image files (JPG/PNG) in the input directory",
+        'audio': "Place audio files (WAV/MP3) in the input directory",
+        'video': "Place video files (MP4) in the input directory",
+        'image-text-pair': "Provide both image file and text input",
+        'document-text-pair': "Provide both PDF document and text input"
+    }
+
+    cli_examples = {
+        'text': f'python run_inference.py --input_text="Your text here"',
+        'image': 'python run_inference.py --image_path=input/image.jpg',
+        'audio': 'python run_inference.py --audio_path=input/audio.wav',
+        'video': 'python run_inference.py --video_path=input/video.mp4',
+        'image-text-pair': 'python run_inference.py --image_path=input/image.jpg --input_text="Your question here"',
+        'document-text-pair': 'python run_inference.py --document_path=input/document.pdf --input_text="Your question here"'
+    }
+
+    docker_examples = {
+        'text': f'docker run -e INPUT_TEXT="Your text here" {model_id.split("/")[-1]}',
+        'image': f'docker run -v $(pwd)/input:/workspace/input {model_id.split("/")[-1]}',
+        'audio': f'docker run -v $(pwd)/input:/workspace/input {model_id.split("/")[-1]}',
+        'video': f'docker run -v $(pwd)/input:/workspace/input {model_id.split("/")[-1]}',
+        'image-text-pair': f'docker run -v $(pwd)/input:/workspace/input -e INPUT_TEXT="Your question here" {model_id.split("/")[-1]}',
+        'document-text-pair': f'docker run -v $(pwd)/input:/workspace/input -e INPUT_TEXT="Your question here" {model_id.split("/")[-1]}'
+    }
+
+    lilypad_examples = {
+        'text': f'lilypad run {model_id.split("/")[-1]} -i input_text="Your text here"',
+        'image': f'lilypad run {model_id.split("/")[-1]} -i input_path=/workspace/input/image.jpg',
+        'audio': f'lilypad run {model_id.split("/")[-1]} -i input_path=/workspace/input/audio.wav',
+        'video': f'lilypad run {model_id.split("/")[-1]} -i input_path=/workspace/input/video.mp4',
+        'image-text-pair': f'lilypad run {model_id.split("/")[-1]} -i input_path=/workspace/input/image.jpg -i input_text="Your question here"',
+        'document-text-pair': f'lilypad run {model_id.split("/")[-1]} -i input_path=/workspace/input/document.pdf -i input_text="Your question here"'
+    }
+
     return f'''# Lilypad Module for {model_id}
 
-This module deploys the [{model_id}](https://huggingface.co/{model_id}) model from Hugging Face.
+This module deploys [{model_id}](https://huggingface.co/{model_id}) from Hugging Face for {model_type['task']} using Lilypad.
 
 ## Setup
 
 1. Build the Docker image:
    ```bash
    docker build -t {model_id.split('/')[-1]} .
+   docker tag {model_id.split('/')[-1]} username/{model_id.split('/')[-1]}:latest
+   docker push username/{model_id.split('/')[-1]}:latest
    ```
 
-2. Run the module:
-
-   {"For image input:" if model_type["input"] == "image" else "For text input:"}
+2. Test locally:
    ```bash
-   # Using command line arguments:
-   {"python run_inference.py --image_path=input/image.jpg" if model_type["input"] == "image" else "python run_inference.py --input_text=\"Your text here\""}
+   # Using Python directly:
+   {cli_examples.get(model_type['input'], cli_examples['text'])}
 
-   # Using Docker with input directory:
-   docker run -v $(pwd)/input:/workspace/input \\
-             -e INPUT_PATH=/workspace/input/{"image.jpg" if model_type["input"] == "image" else "input.txt"} \\
-             {model_id.split('/')[-1]}
+   # Using Docker:
+   {docker_examples.get(model_type['input'], docker_examples['text'])}
    ```
 
-3. Deploy to Lilypad:
+3. Run on Lilypad:
    ```bash
-   lilypad module deploy .
+   {lilypad_examples.get(model_type['input'], lilypad_examples['text'])}
    ```
 
 ## Input Format
 
 - Type: {model_type['input']}
-- {"Place image files in the input directory" if model_type["input"] == "image" else "Provide text directly via --input_text or place in input.txt"}
-- Results will be in: output/result.json'''
+- {input_instructions.get(model_type['input'], input_instructions['text'])}
+- Results will be saved to: output/result.json
+
+## Example Output
+
+The model will output JSON in this format:
+```json
+{{
+    "result": <model specific output>,
+    "status": "success"
+}}
+```
+
+## Error Handling
+
+If an error occurs, the output JSON will contain:
+```json
+{{
+    "error": "Error message",
+    "status": "error"
+}}
+```
+
+## System Requirements
+
+- GPU with at least 8GB VRAM
+- CUDA support
+- Docker installed
+
+## Advanced Configuration
+
+You can modify lilypad_module.json.tmpl to adjust:
+- GPU/CPU/RAM requirements
+- Timeout duration
+- Network access
+- Environment variables'''
 
 @app.route('/')
 def index():
@@ -354,17 +249,31 @@ def generate():
         memory_file = BytesIO()
         with zipfile.ZipFile(memory_file, 'w', zipfile.ZIP_DEFLATED) as zf:
             # Add files
-            zf.writestr('Dockerfile', generate_dockerfile())
-            zf.writestr('requirements.txt', generate_requirements(model_type))
-            zf.writestr('run_inference.py', generate_inference(model_info.id, model_type))
+            zf.writestr('Dockerfile', utils.generate_dockerfile(model_type))
+            zf.writestr('requirements.txt', utils.generate_requirements(model_type))
+            
+            # Get inference code from appropriate handler
+            inference_code = handlers.get_inference_code(model_type['input'], model_info.id, model_type['task'])
+            if inference_code:
+                zf.writestr('run_inference.py', inference_code)
+            else:
+                # Use default text handler if no specific handler exists
+                zf.writestr('run_inference.py', handlers.get_inference_code('text', model_info.id, model_type['task']))
+            
             zf.writestr('lilypad_module.json.tmpl', generate_module_template(model_info.id, model_type))
             zf.writestr('README.md', generate_readme(model_info.id, model_type))
             
-            # Add example input directory
-            if model_type['input'] == 'image':
-                zf.writestr('input/README.md', 'Place your image files (JPG/PNG) here')
-            else:
-                zf.writestr('input/README.md', 'Place your text files here if not using command line input')
+            # Add example input directory and instructions based on type
+            input_readme = {
+                'text': 'Place your text files here if not using command line input',
+                'image': 'Place your image files (JPG/PNG) here',
+                'audio': 'Place your audio files (WAV/MP3) here',
+                'video': 'Place your video files (MP4) here',
+                'document-text-pair': 'Place your document files (PDF) here',
+                'image-text-pair': 'Place your image files here'
+            }.get(model_type['input'], 'Place input files here')
+            
+            zf.writestr('input/README.md', input_readme)
         
         memory_file.seek(0)
         
