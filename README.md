@@ -56,7 +56,7 @@ A web-based tool that generates Lilypad deployment modules from Hugging Face mod
   - [x] Dockerfile with proper dependencies
   - [x] requirements.txt based on model type
   - [x] run_inference.py with CLI support
-  - [x] module.yaml for Lilypad configuration
+  - [x] lilypad_module.json.tmpl for Lilypad configuration
   - [x] README with usage instructions
 
 - [x] Model Type Support
@@ -86,13 +86,33 @@ After downloading and extracting the generated module:
    cd lilypad-your-model-name
    ```
 
-2. Run inference:
+2. Build Docker image:
+   ```bash
+   docker build -t username/model-name .
+   ```
+
+3. Test locally:
    ```bash
    # For text models:
    python run_inference.py --input_text="Your text here"
+   # Or with Docker:
+   docker run -v $(pwd)/output:/outputs username/model-name -e INPUT_TEXT="Your text here"
 
    # For image models:
    python run_inference.py --image_path=input/image.jpg
+   # Or with Docker:
+   docker run -v $(pwd)/input:/workspace/input -v $(pwd)/output:/outputs username/model-name
+   ```
+
+4. Deploy to Lilypad:
+   ```bash
+   # Push Docker image
+   docker push username/model-name
+   
+   # Run on Lilypad network
+   lilypad run username/model-name -i input_text="Your text here"
+   # Or for images:
+   lilypad run username/model-name -i input_path=/workspace/input/image.jpg
    ```
 
 ## Required Files
