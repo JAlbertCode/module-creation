@@ -1,0 +1,140 @@
+"""
+Inference script for automatic speech recognition models
+Generated from template for {{ model_info.name }}
+"""
+
+import os
+import json
+import torch
+import librosa
+import numpy as np
+from typing import Dict, Any
+
+def load_model():
+    """Load ASR model and processor"""
+    from transformers import AutoProcessor, {{ model_type.model_class }}
+    
+    processor = AutoProcessor.from_pretrained("./model")
+    model = {{ model_type.model_class }}.from_pretrained(
+        "./model",
+        torch_dtype=torch.float16,
+        device_map="auto"
+    )
+    
+    return model, processor
+
+def load_audio(audio_path: str) -> Dict[str, Any]:
+    """Load and preprocess audio file"""
+    try:
+        # Load audio file
+        waveform, sample_rate = librosa.load(
+            audio_path,
+            sr={{ model_config.sampling_rate or 16000 }}  # Target sampling rate
+        )
+        
+        # Convert to mono if stereo
+        if len(waveform.shape) > 1:
+            waveform = librosa.to_mono(waveform)
+        
+        return {
+            "waveform": waveform,
+            "sample_rate": sample_rate,
+            "duration": len(waveform) / sample_rate
+        }
+        
+    except Exception as e:
+        raise ValueError(f"Error loading audio file: {str(e)}")
+
+def transcribe_audio(
+    audio_path: str,
+    model: Any,
+    processor: Any
+) -> Dict[str, Any]:
+    """Transcribe audio to text"""
+    
+    # Get parameters from environment or use defaults
+    chunk_length_s = float(os.getenv("CHUNK_LENGTH", {{ model_config.chunk_length_s or 30 }}))
+    return_timestamps = os.getenv("RETURN_TIMESTAMPS", "{{ model_config.return_timestamps or 'False' }}").lower() == "true"
+    
+    # Load audio
+    audio_data = load_audio(audio_path)
+    waveform = audio_data["waveform"]
+    sample_rate = audio_data["sample_rate"]
+    
+    # Prepare inputs
+    inputs = processor(
+        waveform,
+        sampling_rate=sample_rate,
+        return_tensors="pt",
+        chunk_length_s=chunk_length_s
+    )
+    
+    # Move to device
+    inputs = {k: v.to(model.device) for k, v in inputs.items()}
+    
+    with torch.no_grad():
+        # Generate transcription
+        outputs = model.generate(
+            **inputs,
+            max_new_tokens={{ model_config.max_new_tokens or 256 }},
+            num_beams={{ model_config.num_beams or 4 }},
+            return_timestamps=return_timestamps
+        )
+    
+    # Process results
+    result = {
+        "audio_path": audio_path,
+        "audio_info": {
+            "duration": audio_data["duration"],
+            "sample_rate": sample_rate
+        },
+        "parameters": {
+            "chunk_length_s": chunk_length_s,
+            "return_timestamps": return_timestamps
+        }
+    }
+    
+    # Decode output
+    if return_timestamps:
+        # Process output with timestamps
+        processed_outputs = processor.batch_decode(outputs, skip_special_tokens=True)
+        result["segments"] = []
+        
+        for output in processed_outputs:
+            if isinstance(output, dict):
+                # Some models return dicts with text and timestamp info
+                result["segments"].append({
+                    "text": output["text"],
+                    "start": output.get("start", None),
+                    "end": output.get("end", None)
+                })
+            else:
+                # Others might return raw text with timestamp tokens
+                result["text"] = output
+    else:
+        # Process output without timestamps
+        result["text"] = processor.batch_decode(
+            outputs,
+            skip_special_tokens=True
+        )[0]
+    
+    return result
+
+def main():
+    """Main inference function"""
+    # Get input audio path
+    audio_path = os.getenv("MODEL_INPUT", "/inputs/audio.wav")
+    
+    # Load model
+    model, processor = load_model()
+    
+    # Run transcription
+    results = transcribe_audio(audio_path, model, processor)
+    
+    # Save results
+    output_file = os.path.join("/outputs", "results.json")
+    with open(output_file, "w") as f:
+        json.dump(results, f, indent=2)
+
+if __name__ == "__main__":
+    main()

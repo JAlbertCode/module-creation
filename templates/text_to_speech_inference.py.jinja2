@@ -1,0 +1,91 @@
+"""
+Inference script for text-to-speech models
+Generated from template for {{ model_info.name }}
+"""
+
+import os
+import json
+import torch
+import numpy as np
+import soundfile as sf
+from typing import Dict, Any
+
+def load_model():
+    """Load TTS model and processor"""
+    from transformers import AutoProcessor, {{ model_type.model_class }}
+    
+    processor = AutoProcessor.from_pretrained("./model")
+    model = {{ model_type.model_class }}.from_pretrained(
+        "./model",
+        torch_dtype=torch.float16,
+        device_map="auto"
+    )
+    
+    return model, processor
+
+def generate_speech(
+    text: str,
+    model: Any,
+    processor: Any
+) -> Dict[str, Any]:
+    """Generate speech from text"""
+    # Get parameters from environment or use defaults
+    voice_preset = os.getenv("VOICE_PRESET", {{ model_config.voice_preset or "default" }})
+    speaking_rate = float(os.getenv("SPEAKING_RATE", {{ model_config.speaking_rate or 1.0 }}))
+    
+    # Prepare inputs
+    inputs = processor(
+        text=text,
+        voice_preset=voice_preset,
+        return_tensors="pt"
+    )
+    
+    # Move to device
+    inputs = {k: v.to(model.device) for k, v in inputs.items()}
+    
+    with torch.no_grad():
+        # Generate audio
+        outputs = model.generate_speech(
+            **inputs,
+            speaking_rate=speaking_rate
+        )
+    
+    # Convert to numpy and save as WAV
+    audio = outputs.cpu().numpy()
+    audio_path = os.path.join("/outputs", "generated_speech.wav")
+    
+    # Save audio
+    sf.write(
+        audio_path, 
+        audio, 
+        samplerate=model.config.sampling_rate
+    )
+    
+    return {
+        "input_text": text,
+        "audio_path": audio_path,
+        "parameters": {
+            "voice_preset": voice_preset,
+            "speaking_rate": speaking_rate,
+            "sampling_rate": model.config.sampling_rate
+        }
+    }
+
+def main():
+    """Main inference function"""
+    # Get input text
+    text = os.getenv("MODEL_INPUT", "Hello, how are you today?")
+    
+    # Load model
+    model, processor = load_model()
+    
+    # Generate speech
+    results = generate_speech(text, model, processor)
+    
+    # Save results
+    output_file = os.path.join("/outputs", "results.json")
+    with open(output_file, "w") as f:
+        json.dump(results, f, indent=2)
+
+if __name__ == "__main__":
+    main()
