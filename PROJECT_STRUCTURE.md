@@ -1,258 +1,148 @@
 # Project Structure
 
-This document outlines the organization and purpose of each component in the Hugging Face to Lilypad module converter.
+This document outlines the organization and purpose of each component in the project.
 
 ## Directory Structure
 
 ```
-modules/
-├── handlers/              # Core handlers for different model types
-│   ├── __init__.py       
-│   ├── base.py           # Base handler class with common functionality
-│   ├── text.py           # Text processing (classification, generation, QA)
-│   ├── image.py          # Image processing (classification, detection, generation)
-│   ├── audio.py          # Audio processing (ASR, TTS, diarization)
-│   ├── video.py          # Video processing (generation, understanding)
-│   ├── multimodal.py     # Multi-input models (CLIP, VL models)
-│   ├── structured.py     # Graph and table processing
-│   ├── point_cloud.py    # 3D point cloud processing
-│   └── time_series.py    # Time series data processing
-│
-├── types/                # Type definitions and model categorization
+├── app.py                  # Web application entry point
+├── modules/
+│   ├── handlers/          # Model type specific handlers
+│   │   ├── __init__.py
+│   │   ├── base.py       # Base handler class
+│   │   ├── text.py       # Text model handler
+│   │   └── image.py      # Image model handler
+│   ├── types/            # Type definitions
+│   │   ├── __init__.py
+│   │   └── model_types.py  # Model type detection
+│   └── utils/            # Utility functions
+│       ├── __init__.py
+│       ├── config.py     # Configuration management
+│       ├── download.py   # Model downloading
+│       ├── templates.py  # Template management
+│       └── validation.py # Input validation
+├── templates/            # Jinja2 templates
+│   ├── Dockerfile.jinja2
+│   ├── image_classification_inference.py.jinja2
+│   ├── image_generation_inference.py.jinja2
+│   └── text_generation_inference.py.jinja2
+├── tests/               # Test files
 │   ├── __init__.py
-│   ├── model_types.py    # Model type detection and configuration
-│   └── task_types.py     # Task-specific configurations
-│
-├── utils/                # Utility functions and helpers
-│   ├── __init__.py
-│   ├── validation.py     # Model compatibility validation
-│   ├── config.py         # Configuration management
-│   └── io_utils.py       # Input/output utilities
-│
-└── __init__.py
-
-templates/              # HTML templates for web interface
-├── index.html
-└── input_form.html
-
-static/                # Static assets for web interface
-├── css/
-└── js/
+│   ├── conftest.py
+│   └── test_handlers/
+└── requirements.txt     # Python dependencies
 ```
 
-## Handler Classes
+## Components
 
-The handler system uses inheritance to provide consistent functionality across different model types:
+### Handlers (modules/handlers/)
 
-### Base Handler
+Each handler class specializes in processing a specific type of model:
 
-**BaseHandler** (`base.py`):
-- Abstract base class that defines common interface
-- Core functionalities:
-  - Model initialization and setup
-  - Environment configuration
-  - Error handling
+- **BaseHandler**: Core functionality for all handlers
+  - Model initialization
+  - Environment setup
   - Resource management
   - Output formatting
 
-### Specialized Handlers
+- **TextHandler**: Text processing models
+  - Classification
+  - Generation
+  - Translation
+  - Question answering
 
-1. **TextHandler** (`text.py`):
-   - Tasks:
-     - Text Classification
-     - Text Generation
-     - Translation
-     - Summarization
-     - Question Answering
-     - Token Classification (NER, POS)
-   - Models: BERT, GPT, T5, RoBERTa
+- **ImageHandler**: Image processing models
+  - Classification
+  - Generation
+  - Object detection
 
-2. **ImageHandler** (`image.py`):
-   - Tasks:
-     - Image Classification
-     - Object Detection
-     - Semantic Segmentation
-     - Image Generation
-     - Image-to-Image Translation
-     - Visual Question Answering
-   - Models: ResNet, YOLO, ViT, Stable Diffusion
+### Types (modules/types/)
 
-3. **AudioHandler** (`audio.py`):
-   - Tasks:
-     - Speech Recognition (ASR)
-     - Text-to-Speech (TTS)
-     - Speaker Diarization
-     - Audio Classification
-     - Voice Conversion
-   - Models: Wav2Vec2, Whisper, HuBERT
+Type system for model categorization and configuration:
 
-4. **VideoHandler** (`video.py`):
-   - Tasks:
-     - Video Classification
-     - Action Recognition
-     - Video Generation
-     - Video Captioning
-     - Object Tracking
-   - Models: TimeSformer, VideoMAE
+- **model_types.py**: 
+  - Model type detection
+  - Framework detection
+  - Hardware requirements
+  - Task categorization
 
-5. **MultimodalHandler** (`multimodal.py`):
-   - Tasks:
-     - Vision-Language Processing
-     - Audio-Visual Understanding
-     - Document Analysis
-     - Multi-sensor Fusion
-   - Models: CLIP, LayoutLM, AudioCLIP
+### Utils (modules/utils/)
 
-6. **StructuredHandler** (`structured.py`):
-   - Tasks:
-     - Graph Classification
-     - Node Classification
-     - Link Prediction
-     - Table Understanding
-   - Models: GNN, GAT, GraphSAGE
+Utility functions and helpers:
 
-7. **PointCloudHandler** (`point_cloud.py`):
-   - Tasks:
-     - Point Cloud Classification
-     - Object Detection in 3D
-     - Point Cloud Segmentation
-     - Point Cloud Registration
-   - Models: PointNet, PointNet++
+- **config.py**: Configuration management
+  - Environment variables
+  - Model settings
+  - Hardware requirements
 
-8. **TimeSeriesHandler** (`time_series.py`):
-   - Tasks:
-     - Time Series Classification
-     - Forecasting
-     - Anomaly Detection
-     - Pattern Recognition
-   - Models: Transformer-Time, TimesNet
+- **download.py**: Model downloading and caching
+  - Hugging Face model downloading
+  - Cache management
+  - Progress tracking
 
-Each handler implements:
-- `generate_imports()`: Required import statements
-- `generate_inference()`: Task-specific inference code
-- `get_requirements()`: Package dependencies
-- `requires_gpu()`: GPU requirements
-- Custom methods for specialized tasks
+- **templates.py**: Template management
+  - Template loading
+  - Template rendering
+  - Template validation
 
-## Type System
+- **validation.py**: Input validation
+  - Model compatibility
+  - Input format checking
+  - System requirements
 
-The type system helps identify and configure models:
+### Templates (templates/)
 
-### Model Types
+Jinja2 templates for generating module files:
 
-`model_types.py` defines:
-- Model requirements (GPU, RAM, packages)
-- Framework detection (PyTorch, TensorFlow)
-- Model capabilities and limitations
+- Dockerfile generation
+- Inference script generation
+- Documentation generation
+- Test script generation
 
-### Task Types
+### Tests (tests/)
 
-`task_types.py` defines:
-- Task categories and requirements
-- Input/output specifications
-- Default parameters
-- Evaluation metrics
+Test files following the same structure as source files:
 
-## Utilities
-
-### Validation
-
-`validation.py` provides:
-- Model compatibility checking
-- Hardware requirement validation
-- Input format validation
-
-### Configuration
-
-`config.py` handles:
-- Module configuration
-- Environment variables
-- Docker configuration
-- Default settings
-
-### I/O Utilities
-
-`io_utils.py` provides:
-- File handling for all data types
-- Format conversion
-- Batch processing
-- Caching
-
-## Usage Examples
-
-1. Basic Usage:
-```python
-from modules.handlers import TextHandler
-from modules.types import detect_model_type
-from modules.utils import validate_model
-
-# Create handler
-model_type = detect_model_type(model_info)
-handler = TextHandler(model_id="bert-base-uncased", task="text-classification")
-
-# Generate module
-inference_code = handler.generate_code()
-```
-
-2. With Configuration:
-```python
-from modules.utils.config import ModuleConfig
-
-# Create configuration
-config = ModuleConfig(model_type)
-config.save_config("/path/to/output")
-```
-
-## Adding New Handlers
-
-To add support for a new model type:
-
-1. Create new handler class:
-```python
-from modules.handlers.base import BaseHandler
-
-class NewHandler(BaseHandler):
-    def generate_imports(self) -> str:
-        # Add required imports
-        
-    def generate_inference(self) -> str:
-        # Add inference code
-```
-
-2. Add type detection in `model_types.py`
-3. Add task configuration in `task_types.py`
-4. Add validation rules in `validation.py`
+- Unit tests
+- Integration tests
+- Template tests
+- Validation tests
 
 ## Dependencies
 
-Dependencies are managed at two levels:
+### Core Requirements
+- torch
+- transformers
+- huggingface-hub
+- jinja2
+- pillow
+- numpy
 
-1. Project Dependencies:
-   - Core requirements in `requirements.txt`
-   - Development requirements in `requirements-dev.txt`
+### Development Requirements
+- pytest
+- black
+- isort
+- mypy
+- pylint
 
-2. Generated Module Dependencies:
-   - Model-specific requirements
-   - System dependencies
-   - Framework dependencies
+## Upcoming Additions
 
-## Testing
+1. Additional Handlers:
+   - AudioHandler (speech models)
+   - VideoHandler (video models)
+   - MultimodalHandler (VQA models)
 
-Test files follow the same structure as source files:
+2. CLI Interface:
+   - Command-line tool
+   - Batch processing
+   - Configuration management
 
-```
-tests/
-├── handlers/
-│   ├── test_text.py
-│   ├── test_image.py
-│   └── ...
-├── types/
-│   └── test_model_types.py
-└── utils/
-    └── test_validation.py
-```
+3. Testing Framework:
+   - Model compatibility tests
+   - Generated code tests
+   - Integration tests
 
-Each test file includes:
-- Unit tests for public methods
-- Integration tests for handler combinations
-- Validation tests for edge cases
+4. Documentation System:
+   - API documentation
+   - User guides
+   - Model compatibility guides

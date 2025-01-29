@@ -1,0 +1,102 @@
+"""
+Inference script for image classification models
+Generated from template for {{ model_info.name }}
+"""
+
+import os
+import json
+import torch
+from PIL import Image
+from typing import Dict, Any, List
+
+def load_model():
+    """Load model and processor"""
+    from transformers import AutoProcessor, {{ model_type.model_class }}
+    
+    processor = AutoProcessor.from_pretrained("./model")
+    model = {{ model_type.model_class }}.from_pretrained(
+        "./model",
+        torch_dtype=torch.float16,
+        device_map="auto"
+    )
+    
+    return model, processor
+
+def load_image(image_path: str) -> Image.Image:
+    """Load and preprocess image"""
+    try:
+        image = Image.open(image_path)
+        image = image.convert('RGB')
+        return image
+    except Exception as e:
+        raise ValueError(f"Error loading image: {str(e)}")
+
+def classify_image(
+    image: Image.Image,
+    model: Any,
+    processor: Any
+) -> Dict[str, Any]:
+    """Run image classification"""
+    
+    # Get classification parameters from environment or use defaults
+    top_k = int(os.getenv("TOP_K", {{ model_config.top_k or 5 }}))
+    threshold = float(os.getenv("THRESHOLD", {{ model_config.threshold or 0.5 }}))
+    
+    # Prepare image
+    inputs = processor(images=image, return_tensors="pt").to(model.device)
+    
+    # Get predictions
+    with torch.no_grad():
+        outputs = model(**inputs)
+        
+    # Get probabilities
+    probs = torch.nn.functional.softmax(outputs.logits[0], dim=-1)
+    
+    # Get top predictions
+    top_probs, top_indices = torch.topk(probs, k=min(top_k, len(probs)))
+    
+    # Format predictions
+    predictions = []
+    for prob, idx in zip(top_probs, top_indices):
+        # Skip if below threshold
+        if prob < threshold:
+            continue
+            
+        predictions.append({
+            "label": model.config.id2label[idx.item()],
+            "confidence": float(prob)
+        })
+        
+    return {
+        "predictions": predictions,
+        "parameters": {
+            "top_k": top_k,
+            "threshold": threshold
+        }
+    }
+
+def main():
+    """Main inference function"""
+    # Get input from environment
+    image_path = os.getenv("MODEL_INPUT", "/inputs/image.jpg")
+    
+    # Load model and image
+    model, processor = load_model()
+    image = load_image(image_path)
+    
+    # Run classification
+    results = classify_image(image, model, processor)
+    
+    # Add input image info
+    results["input_image"] = {
+        "path": image_path,
+        "size": image.size
+    }
+    
+    # Save results
+    output_file = os.path.join("/outputs", "results.json")
+    with open(output_file, "w") as f:
+        json.dump(results, f, indent=2)
+
+if __name__ == "__main__":
+    main()

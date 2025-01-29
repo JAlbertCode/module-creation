@@ -8,6 +8,32 @@ This tool helps you convert any Hugging Face model into a Lilypad module that ca
 - Configuration of Lilypad module template
 - Documentation generation
 
+## Current Status
+
+### Completed Features
+- ✅ Model type detection system
+- ✅ Basic validation framework
+- ✅ Template system with Jinja2
+- ✅ Handlers for text and image models
+- ✅ Download and caching manager
+- ✅ Project structure and organization
+
+### In Progress
+- 🟡 Additional model type handlers:
+  - Audio (speech recognition, text-to-speech)
+  - Video (classification, generation)
+  - Multimodal (VQA, document QA)
+- 🟡 Input/output validation for each task type
+- 🟡 Testing framework 
+
+### Upcoming Tasks
+- 📝 Command-line interface for module generation
+- 📝 Web interface development 
+- 📝 Docker image building and testing
+- 📝 Additional templates for specialized tasks
+- 📝 Automated testing and CI/CD
+- 📝 Documentation generation system
+
 ## Features
 
 - Support for multiple model types:
@@ -80,14 +106,21 @@ Coming soon!
 To modify or extend the converter:
 
 1. Model Types: Add new model types in `modules/model_types.py`
-2. Handlers: Add input/output handlers in `modules/handlers.py`
-3. Validation: Add validation rules in `modules/validation.py`
-4. Configuration: Modify module configs in `modules/config.py`
-5. Templates: Update UI templates in `templates/`
+2. Handlers: Add input/output handlers in `modules/handlers/`
+3. Validation: Add validation rules in `modules/utils/validation.py`
+4. Configuration: Modify module configs in `modules/utils/config.py`
+5. Templates: Update templates in `templates/`
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+Contributions are welcome! Please feel free to submit a Pull Request. Here are some ways you can help:
+
+1. Add support for new model types
+2. Create templates for specialized tasks
+3. Improve validation and error handling
+4. Enhance documentation
+5. Add examples and test cases
+6. Report bugs and suggest features
 
 ## License
 

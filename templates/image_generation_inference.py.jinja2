@@ -1,0 +1,136 @@
+"""
+Inference script for image generation models
+Generated from template for {{ model_info.name }}
+"""
+
+import os
+import json
+import torch
+import base64
+from io import BytesIO
+from PIL import Image
+from typing import Dict, Any
+
+def load_model():
+    """Load the model"""
+    {% if model_type.framework == "diffusers" %}
+    from diffusers import {{ model_type.pipeline_class }}
+    
+    model = {{ model_type.pipeline_class }}.from_pretrained(
+        "./model",
+        torch_dtype=torch.float16,
+        device_map="auto",
+        safety_checker=None  # Speed up inference
+    )
+    
+    {% if model_config.use_custom_scheduler %}
+    from diffusers import {{ model_config.scheduler_class }}
+    model.scheduler = {{ model_config.scheduler_class }}.from_config(model.scheduler.config)
+    {% endif %}
+    
+    {% else %}
+    from transformers import AutoProcessor, {{ model_type.model_class }}
+    
+    processor = AutoProcessor.from_pretrained("./model")
+    model = {{ model_type.model_class }}.from_pretrained(
+        "./model",
+        torch_dtype=torch.float16,
+        device_map="auto"
+    )
+    return model, processor
+    {% endif %}
+    
+    return model
+
+def generate_image(
+    prompt: str,
+    model: Any,
+    {% if not model_type.framework == "diffusers" %}
+    processor: Any,
+    {% endif %}
+) -> Dict[str, Any]:
+    """Generate image from prompt"""
+    
+    # Get generation config from environment or use defaults
+    height = int(os.getenv("HEIGHT", {{ model_config.height or 1024 }}))
+    width = int(os.getenv("WIDTH", {{ model_config.width or 1024 }}))
+    steps = int(os.getenv("STEPS", {{ model_config.num_inference_steps or 50 }}))
+    guidance_scale = float(os.getenv("GUIDANCE_SCALE", {{ model_config.guidance_scale or 7.5 }}))
+    negative_prompt = os.getenv("NEGATIVE_PROMPT", "")
+    
+    {% if model_type.framework == "diffusers" %}
+    # Generate with diffusers pipeline
+    output = model(
+        prompt=prompt,
+        negative_prompt=negative_prompt,
+        height=height,
+        width=width,
+        num_inference_steps=steps,
+        guidance_scale=guidance_scale,
+        num_images_per_prompt=1
+    )
+    
+    image = output.images[0]
+    
+    {% else %}
+    # Generate with transformers
+    inputs = processor(
+        text=[prompt],
+        return_tensors="pt"
+    ).to(model.device)
+    
+    with torch.no_grad():
+        output = model.generate(
+            **inputs,
+            height=height,
+            width=width,
+            num_inference_steps=steps,
+            guidance_scale=guidance_scale
+        )
+    
+    image = processor.image_processor.postprocess(output)[0]
+    {% endif %}
+    
+    # Save image
+    image_path = os.path.join("/outputs", "generated_image.png")
+    image.save(image_path)
+    
+    # Convert to base64 for JSON
+    buffered = BytesIO()
+    image.save(buffered, format="PNG")
+    img_str = base64.b64encode(buffered.getvalue()).decode()
+    
+    return {
+        "prompt": prompt,
+        "negative_prompt": negative_prompt,
+        "image_path": image_path,
+        "image_base64": img_str,
+        "parameters": {
+            "height": height,
+            "width": width,
+            "steps": steps,
+            "guidance_scale": guidance_scale
+        }
+    }
+
+def main():
+    """Main inference function"""
+    # Get input from environment
+    prompt = os.getenv("MODEL_INPUT", "A beautiful landscape painting")
+    
+    # Load model
+    {% if model_type.framework == "diffusers" %}
+    model = load_model()
+    results = generate_image(prompt, model)
+    {% else %}
+    model, processor = load_model()
+    results = generate_image(prompt, model, processor)
+    {% endif %}
+    
+    # Save results
+    output_file = os.path.join("/outputs", "results.json")
+    with open(output_file, "w") as f:
+        json.dump(results, f, indent=2)
+
+if __name__ == "__main__":
+    main()

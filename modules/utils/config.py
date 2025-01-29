@@ -1,207 +1,312 @@
-"""
-Configuration management for Hugging Face to Lilypad conversion
-"""
+"""Configuration utilities for Lilypad modules"""
 
-from typing import Dict, Any, Optional
-import os
 import json
-from pathlib import Path
-from ..types import ModelType, TaskType
+from typing import Dict, Any, List, Optional
+import os
+from huggingface_hub.hf_api import ModelInfo
 
-class ModuleConfig:
-    """Configuration management for Lilypad modules"""
+def generate_module_template(
+    model_id: str,
+    model_type: Dict[str, Any],
+    model_configs: Dict[str, Any]
+) -> str:
+    """Generate Lilypad module template"""
     
-    def __init__(self, model_type: ModelType):
-        self.model_type = model_type
-        self._load_defaults()
-
-    def _load_defaults(self) -> None:
-        """Load default configuration values"""
-        self.defaults = {
-            'machine': {
-                'gpu': int(self.model_type.requirements.min_gpu_memory > 0),
-                'cpu': 1000,  # millicpus
-                'ram': max(8000, self.model_type.requirements.min_ram)  # MB
-            },
-            'job': {
-                'APIVersion': 'V1beta1',
-                'Spec': {
-                    'Deal': {
-                        'Concurrency': 1
-                    },
-                    'Docker': {
-                        'Entrypoint': ['python', '/workspace/run_inference.py'],
-                        'WorkingDirectory': '/workspace',
-                        'Image': f'huggingface/{self.model_type.name}'
-                    },
-                    'Engine': 'Docker',
-                    'Network': {
-                        'Type': 'None'
-                    },
-                    'PublisherSpec': {
-                        'Type': 'ipfs'
-                    },
-                    'Timeout': 1800
-                }
+    gpu_count = 1 if model_type.get("requires_gpu", False) else 0
+    memory = model_type.get("memory_requirements", 8000)
+    
+    # Get environment variables based on task
+    env_variables = get_task_env_variables(model_type["task"])
+    
+    # Add model configurations as environment variables
+    for key, value in model_configs.items():
+        if value is not None:
+            env_variables.append(f'"{key.upper()}={value}"')
+    
+    # Base template
+    template = {
+        "machine": {
+            "gpu": gpu_count,
+            "cpu": 1000,
+            "ram": memory
+        },
+        "job": {
+            "APIVersion": "V1beta1",
+            "Spec": {
+                "Deal": {
+                    "Concurrency": 1
+                },
+                "Docker": {
+                    "Entrypoint": ["python", "/app/run_inference.py"],
+                    "WorkingDirectory": "/app",
+                    "EnvironmentVariables": [
+                        "HF_HUB_OFFLINE=1",
+                        "TRANSFORMERS_OFFLINE=1"
+                    ] + env_variables,
+                    "Image": "" # To be filled by module generator
+                },
+                "Engine": "Docker",
+                "Network": {
+                    "Type": "None"
+                },
+                "Outputs": [
+                    {
+                        "Name": "outputs",
+                        "Path": "/outputs"
+                    }
+                ],
+                "PublisherSpec": {
+                    "Type": "ipfs"
+                },
+                "Resources": {
+                    "GPU": str(gpu_count)
+                },
+                "Timeout": 1800
             }
         }
+    }
+    
+    return json.dumps(template, indent=4)
 
-    def generate_module_config(self, custom_config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        """
-        Generate Lilypad module configuration
+def get_task_env_variables(task: str) -> List[str]:
+    """Get environment variables needed for a task"""
+    
+    common_vars = [
+        # Common model settings
+        '"MODEL_DTYPE=float16"',
+        '"USE_SAFETENSORS=1"'
+    ]
+    
+    task_vars = {
+        "text-generation": [
+            '"MAX_NEW_TOKENS=256"',
+            '"TEMPERATURE=0.7"',
+            '"TOP_P=0.9"',
+            '"DO_SAMPLE=1"'
+        ],
+        "text-to-image": [
+            '"HEIGHT=1024"',
+            '"WIDTH=1024"',
+            '"NUM_INFERENCE_STEPS=50"',
+            '"GUIDANCE_SCALE=7.5"'
+        ],
+        "image-classification": [
+            '"TOP_K=5"',
+            '"THRESHOLD=0.5"'
+        ],
+        "visual-question-answering": [
+            '"MAX_NEW_TOKENS=100"',
+            '"NUM_BEAMS=4"'
+        ]
+    }
+    
+    return common_vars + task_vars.get(task, [])
+
+def generate_dockerfile(
+    model_type: Dict[str, Any],
+    requirements: Optional[List[str]] = None,
+    system_packages: Optional[List[str]] = None
+) -> str:
+    """Generate Dockerfile for module"""
+    
+    if requirements is None:
+        requirements = []
+    if system_packages is None:
+        system_packages = []
         
-        Args:
-            custom_config: Optional custom configuration to override defaults
+    # Add task-specific system packages
+    if model_type["task"] in ["text-to-image", "image-classification"]:
+        system_packages.extend(["libgl1-mesa-glx", "libglib2.0-0"])
+    elif model_type["task"] in ["text-to-speech", "speech-recognition"]:
+        system_packages.extend(["libsndfile1", "ffmpeg"])
+        
+    # Generate Dockerfile content
+    dockerfile = [
+        "FROM python:3.9-slim",
+        "",
+        "WORKDIR /app",
+        "",
+        "# Install system dependencies",
+        "RUN apt-get update && apt-get install -y \\",
+        "    " + " \\\n    ".join(system_packages) + " \\",
+        "    && rm -rf /var/lib/apt/lists/*",
+        "",
+        "# Install Python packages",
+        "RUN pip install --no-cache-dir \\",
+        "    " + " \\\n    ".join(requirements),
+        "",
+        "# Create directories",
+        "RUN mkdir -p /cache/huggingface",
+        "RUN mkdir -p /outputs",
+        "",
+        "# Set environment variables", 
+        "ENV HF_HOME=/cache/huggingface",
+        "ENV PYTHONUNBUFFERED=1",
+        "",
+        "# Copy model files",
+        "COPY ./model /app/model",
+        "",
+        "# Copy inference script",
+        "COPY run_inference.py /app/",
+        "",
+        "# Set output directory as volume",
+        "VOLUME /outputs",
+        "",
+        "# Run inference script",
+        "CMD [\"python\", \"/app/run_inference.py\"]"
+    ]
+    
+    return "\n".join(dockerfile)
+
+def get_model_configs(model_type: Dict[str, Any]) -> Dict[str, Any]:
+    """Get available configurations for a model type"""
+    
+    base_configs = {
+        "model_dtype": {
+            "description": "Model precision",
+            "options": ["float16", "float32", "bfloat16"],
+            "default": "float16"
+        },
+        "use_safetensors": {
+            "description": "Use safetensors format",
+            "options": [True, False],
+            "default": True
+        }
+    }
+    
+    task_configs = {
+        "text-generation": {
+            "max_new_tokens": {
+                "description": "Maximum number of tokens to generate",
+                "range": [1, 2048],
+                "default": 256
+            },
+            "temperature": {
+                "description": "Sampling temperature",
+                "range": [0.1, 2.0],
+                "default": 0.7
+            },
+            "top_p": {
+                "description": "Top-p sampling",
+                "range": [0.1, 1.0],
+                "default": 0.9
+            },
+            "do_sample": {
+                "description": "Use sampling instead of greedy decoding",
+                "options": [True, False],
+                "default": True
+            }
+        },
+        "text-to-image": {
+            "height": {
+                "description": "Image height",
+                "options": [512, 768, 1024],
+                "default": 1024
+            },
+            "width": {
+                "description": "Image width", 
+                "options": [512, 768, 1024],
+                "default": 1024
+            },
+            "num_inference_steps": {
+                "description": "Number of denoising steps",
+                "range": [1, 100],
+                "default": 50
+            },
+            "guidance_scale": {
+                "description": "Guidance scale for image generation",
+                "range": [1.0, 20.0],
+                "default": 7.5
+            }
+        },
+        "image-classification": {
+            "top_k": {
+                "description": "Number of top predictions to return",
+                "range": [1, 100],
+                "default": 5
+            },
+            "threshold": {
+                "description": "Classification threshold",
+                "range": [0.0, 1.0],
+                "default": 0.5
+            }
+        }
+    }
+    
+    configs = base_configs.copy()
+    if model_type["task"] in task_configs:
+        configs.update(task_configs[model_type["task"]])
+        
+    return configs
+
+def load_model_config(config_path: str) -> Dict[str, Any]:
+    """Load model configuration from file"""
+    if not os.path.exists(config_path):
+        return {}
+        
+    with open(config_path) as f:
+        return json.load(f)
+
+def save_model_config(config: Dict[str, Any], config_path: str) -> None:
+    """Save model configuration to file"""
+    with open(config_path, 'w') as f:
+        json.dump(config, f, indent=4)
+
+def validate_model_config(config: Dict[str, Any], model_type: Dict[str, Any]) -> bool:
+    """Validate model configuration against requirements"""
+    available_configs = get_model_configs(model_type)
+    
+    for key, value in config.items():
+        if key not in available_configs:
+            return False
             
-        Returns:
-            Dictionary containing module configuration
-        """
-        config = self.defaults.copy()
-        
-        # Add task-specific environment variables
-        env_vars = [
-            f'MODEL_ID={self.model_type.task.name}',
-            f'TASK={self.model_type.task.name}'
-        ]
-        
-        # Add framework-specific variables
-        if self.model_type.framework == 'pytorch':
-            env_vars.extend([
-                'TORCH_CUDA_ARCH_LIST=7.5',
-                'TORCH_CUDA_VERSION=11.8'
-            ])
-        
-        # Add quantization variables if needed
-        if self.model_type.quantization:
-            env_vars.append(f'QUANTIZATION={self.model_type.quantization}')
-        
-        # Add special inputs if any
-        if self.model_type.special_inputs:
-            for key, value in self.model_type.special_inputs.items():
-                env_vars.append(f'{key.upper()}={value}')
-        
-        config['job']['Spec']['Docker']['EnvironmentVariables'] = env_vars
-        
-        # Update with custom config if provided
-        if custom_config:
-            self._deep_update(config, custom_config)
-        
-        return config
+        config_spec = available_configs[key]
+        if "options" in config_spec:
+            if value not in config_spec["options"]:
+                return False
+        elif "range" in config_spec:
+            min_val, max_val = config_spec["range"]
+            if value < min_val or value > max_val:
+                return False
+                
+    return True
 
-    def generate_dockerfile(self) -> str:
-        """
-        Generate Dockerfile content
-        
-        Returns:
-            String containing Dockerfile content
-        """
-        base_image = "pytorch/pytorch:2.1.0-cuda12.1-cudnn8-runtime" if self.model_type.framework == 'pytorch' \
-            else "tensorflow/tensorflow:2.14.0-gpu"
-        
-        dockerfile = [
-            f"FROM {base_image}",
-            "",
-            "WORKDIR /workspace",
-            "",
-            "# Install system dependencies",
-            "RUN apt-get update && apt-get install -y \\",
-            "    git \\",
-            "    python3-pip \\"
-        ]
-        
-        # Add task-specific system packages
-        if self.model_type.requirements.system_packages:
-            for package in self.model_type.requirements.system_packages:
-                dockerfile.append(f"    {package} \\")
-        
-        dockerfile.extend([
-            "    && rm -rf /var/lib/apt/lists/*",
-            "",
-            "# Install Python dependencies",
-            "COPY requirements.txt .",
-            "RUN pip install --no-cache-dir -r requirements.txt",
-            "",
-            "# Create directories",
-            "RUN mkdir -p /workspace/input /workspace/output",
-            "",
-            "# Copy inference code",
-            "COPY run_inference.py .",
-            "",
-            "# Set environment variables",
-            "ENV PYTHONUNBUFFERED=1",
-            "ENV TRANSFORMERS_OFFLINE=1"
-        ])
-        
-        # Add framework-specific environment variables
-        if self.model_type.framework == 'pytorch':
-            dockerfile.extend([
-                "ENV TORCH_CUDA_ARCH_LIST=7.5",
-                "ENV TORCH_CUDA_VERSION=11.8"
-            ])
-        
-        dockerfile.extend([
-            "",
-            "# Default command",
-            'ENTRYPOINT ["python", "run_inference.py"]'
-        ])
-        
-        return "\n".join(dockerfile)
-
-    def generate_requirements(self) -> str:
-        """
-        Generate requirements.txt content
-        
-        Returns:
-            String containing requirements.txt content
-        """
-        requirements = self.model_type.requirements.required_packages.copy()
-        
-        # Add task-specific requirements
-        if 'vision' in self.model_type.task.category:
-            requirements.extend([
-                'pillow>=10.0.0',
-                'torchvision>=0.16.0'
-            ])
-        elif 'audio' in self.model_type.task.category:
-            requirements.extend([
-                'librosa>=0.10.1',
-                'soundfile>=0.12.1'
-            ])
-        elif 'video' in self.model_type.task.category:
-            requirements.extend([
-                'decord>=0.6.0',
-                'av>=10.0.0'
-            ])
-        
-        return "\n".join(sorted(set(requirements)))
-
-    def save_config(self, output_dir: str) -> None:
-        """
-        Save all configuration files
-        
-        Args:
-            output_dir: Directory to save configuration files in
-        """
-        output_path = Path(output_dir)
-        output_path.mkdir(parents=True, exist_ok=True)
-        
-        # Save module config
-        with open(output_path / 'lilypad_module.json', 'w') as f:
-            json.dump(self.generate_module_config(), f, indent=2)
-        
-        # Save Dockerfile
-        with open(output_path / 'Dockerfile', 'w') as f:
-            f.write(self.generate_dockerfile())
-        
-        # Save requirements
-        with open(output_path / 'requirements.txt', 'w') as f:
-            f.write(self.generate_requirements())
-
-    @staticmethod
-    def _deep_update(base_dict: Dict, update_dict: Dict) -> None:
-        """Recursively update a dictionary"""
-        for key, value in update_dict.items():
-            if isinstance(value, dict) and key in base_dict and isinstance(base_dict[key], dict):
-                ModuleConfig._deep_update(base_dict[key], value)
-            else:
-                base_dict[key] = value
+def get_input_template(task: str) -> Dict[str, Any]:
+    """Get input template for a task"""
+    templates = {
+        "text-generation": {
+            "format": "text",
+            "example": "Write a story about an adventurous cat.",
+            "max_length": 2048
+        },
+        "text-to-image": {
+            "format": "text",
+            "example": "A beautiful sunset over mountains, digital art style",
+            "max_length": 500
+        },
+        "image-classification": {
+            "format": "image",
+            "supported_formats": ["jpg", "png", "jpeg"],
+            "max_size": "4096x4096",
+            "example_path": "/inputs/image.jpg"
+        },
+        "visual-question-answering": {
+            "format": "multimodal",
+            "components": {
+                "image": {
+                    "format": "image",
+                    "supported_formats": ["jpg", "png", "jpeg"]
+                },
+                "question": {
+                    "format": "text",
+                    "max_length": 500
+                }
+            },
+            "example": {
+                "image": "/inputs/image.jpg",
+                "question": "What is the main object in this image?"
+            }
+        }
+    }
+    
+    return templates.get(task, {"format": "unknown"})

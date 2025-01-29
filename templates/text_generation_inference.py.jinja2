@@ -1,0 +1,93 @@
+"""
+Inference script for text generation models
+Generated from template for {{ model_info.name }}
+"""
+
+import os
+import json
+import torch
+from typing import Dict, Any
+
+def load_model():
+    """Load the model and tokenizer"""
+    from transformers import AutoTokenizer, AutoModelForCausalLM
+    
+    # Load tokenizer
+    tokenizer = AutoTokenizer.from_pretrained("./model")
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token
+        
+    # Load model
+    model = AutoModelForCausalLM.from_pretrained(
+        "./model",
+        device_map="auto",
+        torch_dtype=torch.float16,
+        trust_remote_code=True
+    )
+    
+    return model, tokenizer
+
+def generate_text(
+    prompt: str,
+    model: Any,
+    tokenizer: Any
+) -> Dict[str, Any]:
+    """Generate text from prompt"""
+    
+    # Prepare inputs
+    inputs = tokenizer(
+        prompt,
+        return_tensors="pt",
+        padding=True,
+        truncation=True,
+        max_length={{ model_config.max_input_length or 1024 }}
+    ).to(model.device)
+    
+    # Set up generation config
+    gen_config = {
+        "max_new_tokens": {{ model_config.max_new_tokens or 256 }},
+        "do_sample": {{ model_config.do_sample or "True" }},
+        "temperature": {{ model_config.temperature or 0.7 }},
+        "top_p": {{ model_config.top_p or 0.9 }},
+        "repetition_penalty": {{ model_config.repetition_penalty or 1.1 }},
+        "pad_token_id": tokenizer.pad_token_id,
+        "eos_token_id": tokenizer.eos_token_id
+    }
+    
+    # Generate
+    with torch.no_grad():
+        outputs = model.generate(
+            **inputs,
+            **gen_config
+        )
+    
+    # Decode output
+    generated_text = tokenizer.batch_decode(
+        outputs,
+        skip_special_tokens=True
+    )[0]
+    
+    return {
+        "prompt": prompt,
+        "generated_text": generated_text,
+        "generation_config": gen_config
+    }
+
+def main():
+    """Main inference function"""
+    # Get input from environment
+    prompt = os.getenv("MODEL_INPUT", "Write something interesting:")
+    
+    # Load model
+    model, tokenizer = load_model()
+    
+    # Generate text 
+    results = generate_text(prompt, model, tokenizer)
+    
+    # Save results
+    output_file = os.path.join("/outputs", "results.json")
+    with open(output_file, "w") as f:
+        json.dump(results, f, indent=2)
+
+if __name__ == "__main__":
+    main()

@@ -1,425 +1,292 @@
-"""
-Image processing handler for Hugging Face models
-"""
+"""Handler for image-based models"""
 
-from typing import Dict, Any, List
+import os
+from typing import List, Any, Dict, Optional
+import torch
+from PIL import Image
+import base64
+from io import BytesIO
+
 from .base import BaseHandler
 
 class ImageHandler(BaseHandler):
-    """Handler for image-based models"""
+    """Handler for image models (classification, generation, vision-language)"""
     
+    TASK_TO_MODEL_CLASS = {
+        "image-classification": "AutoModelForImageClassification",
+        "image-to-text": "AutoModelForCausalLM",
+        "text-to-image": "StableDiffusionPipeline",  # Special case
+        "visual-question-answering": "AutoModelForVisualQuestionAnswering",
+        "image-segmentation": "AutoModelForImageSegmentation",
+        "object-detection": "AutoModelForObjectDetection"
+    }
+    
+    def __init__(self, model_id: str, task: str, config: Optional[Dict[str, Any]] = None):
+        super().__init__(model_id, task, config)
+        self.system_dependencies = ["libgl1-mesa-glx", "libglib2.0-0"]
+        
     def generate_imports(self) -> str:
-        imports = super().generate_imports()
-        return imports + """
-import torch
-from PIL import Image
-import numpy as np
-from torchvision.transforms import functional as F
-from transformers import (
-    AutoImageProcessor,
-    ViTImageProcessor,
-    DeiTImageProcessor,
-    AutoProcessor,
-    pipeline
-)
-from diffusers import (
-    StableDiffusionPipeline,
-    StableDiffusionImg2ImgPipeline,
-    StableDiffusionInpaintPipeline,
-    AutoencoderKL
-)
-"""
-
-    def generate_inference(self) -> str:
-        if self.task == 'image-classification':
-            return self._generate_classification_inference()
-        elif self.task == 'object-detection':
-            return self._generate_detection_inference()
-        elif self.task == 'image-segmentation':
-            return self._generate_segmentation_inference()
-        elif self.task == 'text-to-image':
-            return self._generate_text_to_image_inference()
-        elif self.task == 'image-to-image':
-            return self._generate_image_to_image_inference()
-        elif self.task == 'image-inpainting':
-            return self._generate_inpainting_inference()
+        model_class = self.TASK_TO_MODEL_CLASS.get(self.task)
+        imports = [
+            "import os",
+            "import json",
+            "import torch",
+            "from PIL import Image",
+            "import base64",
+            "from io import BytesIO"
+        ]
+        
+        if self.task == "text-to-image":
+            imports.extend([
+                "from diffusers import StableDiffusionPipeline, DPMSolverMultistepScheduler",
+                "import numpy as np"
+            ])
         else:
-            return self._generate_default_inference()
-
-    def _generate_classification_inference(self) -> str:
+            imports.extend([
+                f"from transformers import AutoProcessor, {model_class}",
+                "from transformers.image_utils import load_image"
+            ])
+            
+        return "\n".join(imports)
+    
+    def generate_inference(self) -> str:
+        """Generate task-specific inference code"""
+        
+        if self.task == "text-to-image":
+            return self._generate_text_to_image_code()
+        elif self.task == "image-classification":
+            return self._generate_classification_code()  
+        elif self.task == "image-to-text":
+            return self._generate_image_to_text_code()
+        elif self.task == "visual-question-answering":
+            return self._generate_vqa_code()
+        else:
+            raise ValueError(f"Unsupported task: {self.task}")
+            
+    def _generate_text_to_image_code(self) -> str:
         return '''
-def process_input(image_path: str, model, processor) -> Dict[str, Any]:
-    """Classify image content"""
-    try:
-        # Load and preprocess image
-        image = Image.open(image_path).convert('RGB')
-        inputs = processor(images=image, return_tensors="pt")
+def load_model():
+    """Load text-to-image model"""
+    model = StableDiffusionPipeline.from_pretrained(
+        "./model",
+        torch_dtype=torch.float16,
+        safety_checker=None
+    )
+    model.scheduler = DPMSolverMultistepScheduler.from_config(model.scheduler.config)
+    model.to("cuda")
+    return model
+
+def run_inference(prompt: str, model) -> Dict[str, Any]:
+    """Generate image from text"""
+    image = model(
+        prompt,
+        num_inference_steps=50,
+        guidance_scale=7.5,
+        height=1024,
+        width=1024
+    ).images[0]
+    
+    # Convert to base64
+    buffered = BytesIO()
+    image.save(buffered, format="PNG")
+    img_str = base64.b64encode(buffered.getvalue()).decode()
+    
+    # Save image file
+    image_path = os.path.join("/outputs", "generated_image.png")
+    image.save(image_path)
+    
+    return {
+        "prompt": prompt,
+        "image_base64": img_str,
+        "image_path": image_path
+    }
+
+def main():
+    """Main inference function"""
+    prompt = os.getenv("MODEL_INPUT", "A beautiful painting of a landscape")
+    
+    model = load_model()
+    results = run_inference(prompt, model)
+    save_output(results)
+'''
+    
+    def _generate_classification_code(self) -> str:
+        return '''
+def load_model():
+    """Load image classification model"""
+    processor = AutoProcessor.from_pretrained("./model")
+    model = AutoModelForImageClassification.from_pretrained(
+        "./model",
+        torch_dtype=torch.float16
+    ).to("cuda")
+    return model, processor
+
+def run_inference(image_path: str, model, processor) -> Dict[str, Any]:
+    """Classify image"""
+    image = load_image(image_path)
+    inputs = processor(images=image, return_tensors="pt").to("cuda")
+    
+    with torch.no_grad():
+        outputs = model(**inputs)
         
-        with torch.inference_mode():
-            outputs = model(**inputs)
-            probabilities = torch.softmax(outputs.logits, dim=-1)
-        
-        # Get top predictions
-        values, indices = probabilities[0].topk(
-            min(len(model.config.id2label), int(os.getenv("TOP_K", "5")))
+    logits = outputs.logits
+    predicted_class_id = logits.argmax(-1).item()
+    probabilities = torch.softmax(logits, dim=-1)[0]
+    
+    return {
+        "predicted_class": model.config.id2label[predicted_class_id],
+        "confidence": float(probabilities[predicted_class_id]),
+        "probabilities": {
+            model.config.id2label[i]: float(prob)
+            for i, prob in enumerate(probabilities)
+        }
+    }
+
+def main():
+    """Main inference function"""
+    image_path = os.getenv("MODEL_INPUT", "/inputs/image.jpg")
+    
+    model, processor = load_model()
+    results = run_inference(image_path, model, processor)
+    save_output(results)
+'''
+
+    def _generate_image_to_text_code(self) -> str:
+        return '''
+def load_model():
+    """Load image captioning model"""
+    processor = AutoProcessor.from_pretrained("./model")
+    model = AutoModelForCausalLM.from_pretrained(
+        "./model",
+        torch_dtype=torch.float16
+    ).to("cuda")
+    return model, processor
+
+def run_inference(image_path: str, model, processor) -> Dict[str, Any]:
+    """Generate caption for image"""
+    image = load_image(image_path)
+    inputs = processor(images=image, return_tensors="pt").to("cuda")
+    
+    with torch.no_grad():
+        outputs = model.generate(
+            **inputs,
+            max_new_tokens=100,
+            num_beams=4,
+            length_penalty=1.0
         )
         
-        predictions = []
-        for value, index in zip(values, indices):
-            predictions.append({
-                "label": model.config.id2label[index.item()],
-                "confidence": float(value)
-            })
-        
-        return {
-            "predictions": predictions,
-            "metadata": {
-                "image_size": image.size,
-                "model": self.model_id,
-                "task": "image-classification"
-            }
-        }
-        
-    except Exception as e:
-        return {"error": str(e)}
+    caption = processor.decode(outputs[0], skip_special_tokens=True)
+    
+    return {
+        "caption": caption,
+        "image_path": image_path
+    }
+
+def main():
+    """Main inference function"""
+    image_path = os.getenv("MODEL_INPUT", "/inputs/image.jpg")
+    
+    model, processor = load_model()
+    results = run_inference(image_path, model, processor)
+    save_output(results)
 '''
 
-    def _generate_detection_inference(self) -> str:
+    def _generate_vqa_code(self) -> str:
         return '''
-def process_input(image_path: str, model, processor) -> Dict[str, Any]:
-    """Detect objects in image"""
-    try:
-        # Load and preprocess image
-        image = Image.open(image_path).convert('RGB')
-        inputs = processor(images=image, return_tensors="pt")
-        
-        # Get parameters
-        confidence_threshold = float(os.getenv("CONFIDENCE_THRESHOLD", "0.5"))
-        
-        with torch.inference_mode():
-            outputs = model(**inputs)
-        
-        # Process detections
-        detections = []
-        scores = outputs.scores[0]
-        boxes = outputs.boxes[0]
-        labels = outputs.labels[0]
-        
-        for score, box, label in zip(scores, boxes, labels):
-            if score > confidence_threshold:
-                detections.append({
-                    "label": model.config.id2label[label.item()],
-                    "confidence": float(score),
-                    "box": {
-                        "x1": float(box[0]),
-                        "y1": float(box[1]),
-                        "x2": float(box[2]),
-                        "y2": float(box[3])
-                    }
-                })
-        
-        # Optionally draw detections
-        if os.getenv("DRAW_DETECTIONS", "true").lower() == "true":
-            import cv2
-            import numpy as np
-            
-            # Convert PIL to OpenCV format
-            image_cv = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
-            
-            for det in detections:
-                box = det["box"]
-                cv2.rectangle(
-                    image_cv,
-                    (int(box["x1"]), int(box["y1"])),
-                    (int(box["x2"]), int(box["y2"])),
-                    (0, 255, 0),
-                    2
-                )
-                cv2.putText(
-                    image_cv,
-                    f"{det['label']}: {det['confidence']:.2f}",
-                    (int(box["x1"]), int(box["y1"] - 10)),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    0.5,
-                    (0, 255, 0),
-                    2
-                )
-            
-            # Save annotated image
-            output_path = os.path.join(
-                os.getenv("OUTPUT_DIR", "/outputs"),
-                "detections.jpg"
-            )
-            cv2.imwrite(output_path, image_cv)
-        
-        return {
-            "detections": detections,
-            "num_objects": len(detections),
-            "metadata": {
-                "image_size": image.size,
-                "confidence_threshold": confidence_threshold,
-                "model": self.model_id,
-                "task": "object-detection"
-            }
-        }
-        
-    except Exception as e:
-        return {"error": str(e)}
-'''
+def load_model():
+    """Load visual question answering model"""
+    processor = AutoProcessor.from_pretrained("./model")
+    model = AutoModelForVisualQuestionAnswering.from_pretrained(
+        "./model",
+        torch_dtype=torch.float16
+    ).to("cuda")
+    return model, processor
 
-    def _generate_segmentation_inference(self) -> str:
-        return '''
-def process_input(image_path: str, model, processor) -> Dict[str, Any]:
-    """Perform semantic segmentation"""
-    try:
-        # Load and preprocess image
-        image = Image.open(image_path).convert('RGB')
-        inputs = processor(images=image, return_tensors="pt")
-        
-        with torch.inference_mode():
-            outputs = model(**inputs)
-            logits = outputs.logits
-            
-        # Get the predicted segmentation map
-        seg_map = logits[0].argmax(dim=0).cpu().numpy()
-        
-        # Get unique segments and their areas
-        segments = []
-        for segment_id in np.unique(seg_map):
-            mask = seg_map == segment_id
-            segments.append({
-                "label": model.config.id2label[segment_id],
-                "area": int(mask.sum()),
-                "percentage": float(mask.sum() / mask.size * 100)
-            })
-        
-        # Optionally create visualization
-        if os.getenv("CREATE_VISUALIZATION", "true").lower() == "true":
-            # Create color map for segments
-            num_classes = len(model.config.id2label)
-            color_map = np.random.randint(0, 255, size=(num_classes, 3))
-            
-            # Create colored segmentation map
-            colored_seg = np.zeros((*seg_map.shape, 3), dtype=np.uint8)
-            for segment_id in np.unique(seg_map):
-                colored_seg[seg_map == segment_id] = color_map[segment_id]
-            
-            # Save visualization
-            vis_path = os.path.join(
-                os.getenv("OUTPUT_DIR", "/outputs"),
-                "segmentation.png"
-            )
-            Image.fromarray(colored_seg).save(vis_path)
-        
-        return {
-            "segments": segments,
-            "unique_segments": len(segments),
-            "metadata": {
-                "image_size": image.size,
-                "model": self.model_id,
-                "task": "image-segmentation",
-                "label_map": model.config.id2label
-            }
-        }
-        
-    except Exception as e:
-        return {"error": str(e)}
-'''
-
-    def _generate_text_to_image_inference(self) -> str:
-        return '''
-def process_input(prompt: str, model, processor) -> Dict[str, Any]:
-    """Generate image from text prompt"""
-    try:
-        # Get generation parameters
-        num_inference_steps = int(os.getenv("NUM_INFERENCE_STEPS", "50"))
-        guidance_scale = float(os.getenv("GUIDANCE_SCALE", "7.5"))
-        negative_prompt = os.getenv("NEGATIVE_PROMPT", None)
-        height = int(os.getenv("HEIGHT", "512"))
-        width = int(os.getenv("WIDTH", "512"))
-        num_images = int(os.getenv("NUM_IMAGES", "1"))
-        
-        with torch.inference_mode():
-            # Generate images
-            outputs = model(
-                prompt,
-                height=height,
-                width=width,
-                num_inference_steps=num_inference_steps,
-                guidance_scale=guidance_scale,
-                negative_prompt=negative_prompt,
-                num_images_per_prompt=num_images
-            )
-        
-        # Save generated images
-        image_paths = []
-        for i, image in enumerate(outputs.images):
-            output_path = os.path.join(
-                os.getenv("OUTPUT_DIR", "/outputs"),
-                f"generated_{i+1}.png"
-            )
-            image.save(output_path)
-            image_paths.append(output_path)
-        
-        return {
-            "image_paths": image_paths,
-            "prompt": prompt,
-            "negative_prompt": negative_prompt,
-            "parameters": {
-                "num_inference_steps": num_inference_steps,
-                "guidance_scale": guidance_scale,
-                "height": height,
-                "width": width
-            },
-            "metadata": {
-                "model": self.model_id,
-                "task": "text-to-image"
-            }
-        }
-        
-    except Exception as e:
-        return {"error": str(e)}
-'''
-
-    def _generate_image_to_image_inference(self) -> str:
-        return '''
-def process_input(image_path: str, model, processor) -> Dict[str, Any]:
-    """Transform input image based on prompt"""
-    try:
-        # Load input image
-        init_image = Image.open(image_path).convert('RGB')
-        
-        # Get parameters
-        prompt = os.getenv("PROMPT", "High quality, detailed image")
-        strength = float(os.getenv("STRENGTH", "0.75"))
-        num_inference_steps = int(os.getenv("NUM_INFERENCE_STEPS", "50"))
-        guidance_scale = float(os.getenv("GUIDANCE_SCALE", "7.5"))
-        negative_prompt = os.getenv("NEGATIVE_PROMPT", None)
-        
-        with torch.inference_mode():
-            # Generate transformed image
-            output = model(
-                prompt,
-                image=init_image,
-                strength=strength,
-                num_inference_steps=num_inference_steps,
-                guidance_scale=guidance_scale,
-                negative_prompt=negative_prompt
-            ).images[0]
-        
-        # Save result
-        output_path = os.path.join(
-            os.getenv("OUTPUT_DIR", "/outputs"),
-            "transformed.png"
+def run_inference(image_path: str, question: str, model, processor) -> Dict[str, Any]:
+    """Answer question about image"""
+    image = load_image(image_path)
+    inputs = processor(images=image, text=question, return_tensors="pt").to("cuda")
+    
+    with torch.no_grad():
+        outputs = model.generate(
+            **inputs,
+            max_new_tokens=50,
+            num_beams=4,
+            early_stopping=True
         )
-        output.save(output_path)
         
-        return {
-            "output_path": output_path,
-            "prompt": prompt,
-            "parameters": {
-                "strength": strength,
-                "num_inference_steps": num_inference_steps,
-                "guidance_scale": guidance_scale
-            },
-            "metadata": {
-                "original_size": init_image.size,
-                "model": self.model_id,
-                "task": "image-to-image"
-            }
-        }
-        
-    except Exception as e:
-        return {"error": str(e)}
-'''
+    answer = processor.decode(outputs[0], skip_special_tokens=True)
+    
+    return {
+        "question": question,
+        "answer": answer,
+        "image_path": image_path
+    }
 
-    def _generate_inpainting_inference(self) -> str:
-        return '''
-def process_input(image_path: str, mask_path: str, model, processor) -> Dict[str, Any]:
-    """Inpaint masked region of image"""
-    try:
-        # Load input image and mask
-        init_image = Image.open(image_path).convert('RGB')
-        mask_image = Image.open(mask_path).convert('RGB')
-        
-        # Get parameters
-        prompt = os.getenv("PROMPT", "Fill in the masked area naturally")
-        num_inference_steps = int(os.getenv("NUM_INFERENCE_STEPS", "50"))
-        guidance_scale = float(os.getenv("GUIDANCE_SCALE", "7.5"))
-        
-        with torch.inference_mode():
-            # Generate inpainted image
-            output = model(
-                prompt=prompt,
-                image=init_image,
-                mask_image=mask_image,
-                num_inference_steps=num_inference_steps,
-                guidance_scale=guidance_scale
-            ).images[0]
-        
-        # Save result
-        output_path = os.path.join(
-            os.getenv("OUTPUT_DIR", "/outputs"),
-            "inpainted.png"
-        )
-        output.save(output_path)
-        
-        return {
-            "output_path": output_path,
-            "prompt": prompt,
-            "parameters": {
-                "num_inference_steps": num_inference_steps,
-                "guidance_scale": guidance_scale
-            },
-            "metadata": {
-                "image_size": init_image.size,
-                "model": self.model_id,
-                "task": "image-inpainting"
-            }
-        }
-        
-    except Exception as e:
-        return {"error": str(e)}
-'''
-
-    def _generate_default_inference(self) -> str:
-        return '''
-def process_input(image_path: str, model, processor) -> Dict[str, Any]:
-    """Default image processing pipeline"""
-    try:
-        # Load and preprocess image
-        image = Image.open(image_path).convert('RGB')
-        inputs = processor(images=image, return_tensors="pt")
-        
-        with torch.inference_mode():
-            outputs = model(**inputs)
-        
-        return {
-            "outputs": outputs.logits.tolist() if hasattr(outputs, "logits") else None,
-            "metadata": {
-                "image_size": image.size,
-                "model": self.model_id,
-                "task": self.task
-            }
-        }
-        
-    except Exception as e:
-        return {"error": str(e)}
+def main():
+    """Main inference function"""
+    image_path = os.getenv("IMAGE_PATH", "/inputs/image.jpg")
+    question = os.getenv("MODEL_INPUT", "What is shown in this image?")
+    
+    model, processor = load_model()
+    results = run_inference(image_path, question, model, processor)
+    save_output(results)
 '''
 
     def get_requirements(self) -> List[str]:
-        reqs = super().get_requirements()
-        reqs.extend([
+        """Get required packages"""
+        base_requirements = [
+            "torch>=2.0.0",
+            "transformers>=4.36.0",
             "pillow>=10.0.0",
-            "torchvision>=0.16.0",
-            "opencv-python>=4.8.0",
-            "diffusers>=0.24.0"
-        ])
-        return reqs
-
+            "numpy>=1.24.0"
+        ]
+        
+        if self.task == "text-to-image":
+            base_requirements.extend([
+                "diffusers>=0.25.0",
+                "invisible-watermark>=0.2.0",
+                "accelerate>=0.25.0"
+            ])
+            
+        return base_requirements
+        
     def requires_gpu(self) -> bool:
-        return self.task in {
-            'text-to-image',
-            'image-to-image',
-            'image-inpainting'
-        } or any(x in self.model_id.lower() for x in ['diffusion', 'vit-large'])
+        """Check if model requires GPU"""
+        # Image models generally need GPU
+        return True
+        
+    def validate_input(self, input_data: Any) -> bool:
+        """Validate input based on task"""
+        if self.task == "text-to-image":
+            return isinstance(input_data, str) and len(input_data.strip()) > 0
+        elif self.task == "visual-question-answering":
+            if not isinstance(input_data, dict):
+                return False
+            image_path = input_data.get("image")
+            question = input_data.get("question")
+            return (isinstance(image_path, str) and os.path.exists(image_path) and
+                    isinstance(question, str) and len(question.strip()) > 0)
+        else:
+            # For image input tasks
+            return isinstance(input_data, str) and os.path.exists(input_data)
+            
+    def format_output(self, output: Any) -> Dict[str, Any]:
+        """Format output based on task"""
+        if self.task == "image-classification":
+            return {
+                "label": output.label,
+                "confidence": float(output.score),
+                "all_labels": [
+                    {"label": label, "score": float(score)}
+                    for label, score in output.all_scores.items()
+                ]
+            }
+        elif self.task == "text-to-image":
+            return {
+                "image_path": output.image_path,
+                "prompt": output.prompt,
+                "base64_image": output.image_base64
+            }
+        else:
+            return output
