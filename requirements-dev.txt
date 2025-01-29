@@ -1,0 +1,26 @@
+# Testing
+pytest>=7.4.0
+pytest-cov>=4.1.0
+pytest-xdist>=3.3.1
+
+# Type checking
+mypy>=1.5.1
+types-requests>=2.31.0.2
+types-PyYAML>=6.0.12.12
+
+# Code quality
+black>=23.7.0
+isort>=5.12.0
+flake8>=6.1.0
+pylint>=2.17.5
+
+# Documentation
+mkdocs>=1.5.2
+mkdocs-material>=9.2.3
+mkdocstrings>=0.22.0
+mkdocstrings-python>=1.5.2
+
+# Development tools
+ipython>=8.14.0
+jupyter>=1.0.0
+tox>=4.8.0
