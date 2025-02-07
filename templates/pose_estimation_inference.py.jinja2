@@ -1,0 +1,135 @@
+"""
+Inference script for pose estimation models
+Generated for {{ model_info.name }}
+"""
+
+import os
+import json
+import torch
+import numpy as np
+import cv2
+from PIL import Image
+import base64
+from io import BytesIO
+from typing import Dict, Any, List, Tuple
+
+def load_model():
+    """Load pose estimation model and processor"""
+    from transformers import AutoProcessor, {{ model_type.model_class }}
+    
+    processor = AutoProcessor.from_pretrained("./model")
+    model = {{ model_type.model_class }}.from_pretrained(
+        "./model",
+        torch_dtype=torch.float16,
+        device_map="auto"
+    )
+    return model, processor
+
+def create_visualization(
+    image: np.ndarray,
+    keypoints: np.ndarray,
+    scores: np.ndarray,
+    skeleton: List[Tuple[int, int]],
+    threshold: float
+) -> np.ndarray:
+    """Draw pose visualization"""
+    vis_img = image.copy()
+    
+    # Draw limbs
+    for start_idx, end_idx in skeleton:
+        if scores[start_idx] > threshold and scores[end_idx] > threshold:
+            start_point = tuple(map(int, keypoints[start_idx]))
+            end_point = tuple(map(int, keypoints[end_idx]))
+            cv2.line(vis_img, start_point, end_point, (0, 255, 0), 2)
+
+    # Draw keypoints
+    for i, (kp, score) in enumerate(zip(keypoints, scores)):
+        if score > threshold:
+            x, y = map(int, kp)
+            cv2.circle(vis_img, (x, y), 4, (255, 0, 0), -1)
+            cv2.putText(vis_img, str(i), (x+5, y+5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
+
+    return vis_img
+
+def run_pose_estimation(
+    image_path: str,
+    model,
+    processor
+) -> Dict[str, Any]:
+    """Run pose estimation"""
+    # Load image
+    image = Image.open(image_path).convert("RGB")
+    image_np = np.array(image)
+
+    # Process image
+    inputs = processor(images=image, return_tensors="pt")
+    inputs = {k: v.to(model.device) for k, v in inputs.items()}
+
+    # Run inference
+    with torch.no_grad():
+        outputs = model(**inputs)
+
+    # Get predictions
+    keypoints = outputs.keypoints[0].cpu().numpy()
+    scores = outputs.scores[0].cpu().numpy() if hasattr(outputs, "scores") else np.ones_like(keypoints[:, 0])
+    
+    threshold = float(os.getenv("THRESHOLD", {{ model_config.threshold or 0.5 }}))
+
+    # Create visualization
+    vis_img = create_visualization(
+        image_np,
+        keypoints,
+        scores,
+        model.config.skeleton,
+        threshold
+    )
+
+    # Save visualization
+    vis_path = os.path.join("/outputs", "pose_visualization.png")
+    Image.fromarray(vis_img).save(vis_path)
+    
+    # Convert to base64
+    buffered = BytesIO()
+    Image.fromarray(vis_img).save(buffered, format="PNG")
+    img_str = base64.b64encode(buffered.getvalue()).decode()
+
+    # Format results
+    detected_keypoints = []
+    for i, (kp, score) in enumerate(zip(keypoints, scores)):
+        if score > threshold:
+            detected_keypoints.append({
+                "id": i,
+                "label": model.config.id2label[i],
+                "position": kp.tolist(),
+                "confidence": float(score)
+            })
+
+    return {
+        "input_image": image_path,
+        "keypoints": detected_keypoints,
+        "visualization": {
+            "path": vis_path,
+            "base64": img_str
+        },
+        "parameters": {
+            "threshold": threshold
+        },
+        "metadata": {
+            "skeleton": model.config.skeleton,
+            "keypoint_labels": model.config.id2label,
+            "total_keypoints": len(detected_keypoints)
+        }
+    }
+
+def main():
+    """Main inference function"""
+    image_path = os.getenv("MODEL_INPUT", "/inputs/image.jpg")
+    model, processor = load_model()
+    results = run_pose_estimation(image_path, model, processor)
+    
+    output_file = os.path.join("/outputs", "results.json")
+    with open(output_file, "w") as f:
+        json.dump(results, f, indent=2)
+
+if __name__ == "__main__":
+    main()
