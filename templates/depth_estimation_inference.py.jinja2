@@ -1,0 +1,160 @@
+"""
+Inference script for depth estimation models
+Generated from template for {{ model_info.name }}
+"""
+
+import os
+import json
+import torch
+import numpy as np
+import cv2
+from PIL import Image
+import base64
+from io import BytesIO
+from typing import Dict, Any
+
+def load_model():
+    """Load depth estimation model and processor"""
+    from transformers import AutoProcessor, {{ model_type.model_class }}
+    
+    processor = AutoProcessor.from_pretrained("./model")
+    model = {{ model_type.model_class }}.from_pretrained(
+        "./model",
+        torch_dtype=torch.float16,
+        device_map="auto"
+    )
+    
+    return model, processor
+
+def load_image(image_path: str) -> Image.Image:
+    """Load and preprocess image"""
+    image = Image.open(image_path)
+    if image.mode != "RGB":
+        image = image.convert("RGB")
+    return image
+
+def create_depth_visualization(
+    depth_map: np.ndarray,
+    min_depth: float = None,
+    max_depth: float = None
+) -> Image.Image:
+    """Create colored depth visualization"""
+    # Normalize depth values
+    if min_depth is None:
+        min_depth = depth_map.min()
+    if max_depth is None:
+        max_depth = depth_map.max()
+        
+    normalized_depth = (depth_map - min_depth) / (max_depth - min_depth)
+    
+    # Convert to uint8
+    depth_uint8 = (normalized_depth * 255).astype(np.uint8)
+    
+    # Apply colormap
+    colored_depth = cv2.applyColorMap(depth_uint8, cv2.COLORMAP_PLASMA)
+    
+    # Convert to RGB for PIL
+    colored_depth = cv2.cvtColor(colored_depth, cv2.COLOR_BGR2RGB)
+    
+    return Image.fromarray(colored_depth)
+
+def estimate_depth(
+    image_path: str,
+    model,
+    processor
+) -> Dict[str, Any]:
+    """Run depth estimation"""
+    # Load and process image
+    image = load_image(image_path)
+    inputs = processor(images=image, return_tensors="pt")
+    inputs = {k: v.to(model.device) for k, v in inputs.items()}
+    
+    # Run inference
+    with torch.no_grad():
+        outputs = model(**inputs)
+    
+    # Get depth map
+    depth_map = outputs.predicted_depth[0].cpu().numpy()
+    
+    # Scale depth map if model provides scaling factors
+    if hasattr(model.config, "depth_scale"):
+        depth_map *= model.config.depth_scale
+    
+    # Get depth statistics
+    min_depth = float(depth_map.min())
+    max_depth = float(depth_map.max())
+    mean_depth = float(depth_map.mean())
+    median_depth = float(np.median(depth_map))
+    
+    # Create visualization
+    vis_image = create_depth_visualization(
+        depth_map,
+        min_depth=min_depth,
+        max_depth=max_depth
+    )
+    
+    # Save outputs
+    vis_path = os.path.join("/outputs", "depth_visualization.png")
+    vis_image.save(vis_path)
+    
+    depth_path = os.path.join("/outputs", "depth_map.npy")
+    np.save(depth_path, depth_map)
+    
+    # Create side-by-side visualization
+    combined = Image.new("RGB", (image.width * 2, image.height))
+    combined.paste(image, (0, 0))
+    combined.paste(vis_image.resize(image.size), (image.width, 0))
+    
+    combined_path = os.path.join("/outputs", "comparison.png")
+    combined.save(combined_path)
+    
+    # Convert to base64
+    buffered = BytesIO()
+    combined.save(buffered, format="PNG")
+    img_str = base64.b64encode(buffered.getvalue()).decode()
+    
+    # Calculate additional statistics
+    depth_hist, bins = np.histogram(depth_map, bins=50)
+    
+    return {
+        "input_image": image_path,
+        "depth_map": depth_path,
+        "visualizations": {
+            "depth": vis_path,
+            "comparison": combined_path,
+            "base64": img_str
+        },
+        "statistics": {
+            "min_depth": min_depth,
+            "max_depth": max_depth,
+            "mean_depth": mean_depth,
+            "median_depth": median_depth,
+            "histogram": {
+                "counts": depth_hist.tolist(),
+                "bins": bins.tolist()
+            }
+        },
+        "model_info": {
+            "scale": getattr(model.config, "depth_scale", 1.0),
+            "unit": getattr(model.config, "depth_unit", "meters")
+        }
+    }
+
+def main():
+    """Main inference function"""
+    # Get input path
+    image_path = os.getenv("MODEL_INPUT", "/inputs/image.jpg")
+    
+    # Load model
+    model, processor = load_model()
+    
+    # Run depth estimation
+    results = estimate_depth(image_path, model, processor)
+    
+    # Save results
+    output_file = os.path.join("/outputs", "results.json")
+    with open(output_file, "w") as f:
+        json.dump(results, f, indent=2)
+
+if __name__ == "__main__":
+    main()

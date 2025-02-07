@@ -21,11 +21,13 @@ This tool helps you convert any Hugging Face model into a Lilypad module that ca
   - Image models (classification, generation)
   - Audio models (speech recognition, text-to-speech, classification)
   - Video models (classification, text-to-video generation, captioning)
+  - Specialized vision models (detection, segmentation, depth estimation)
 - ✅ Templates for model tasks:
   - Text generation and classification
   - Image generation and classification
   - Audio processing (ASR, TTS, classification)
   - Video processing (classification, generation, captioning)
+  - Specialized vision (object detection, segmentation, depth estimation)
 - ✅ Command-line interface:
   - Model conversion
   - Docker image building
@@ -33,8 +35,9 @@ This tool helps you convert any Hugging Face model into a Lilypad module that ca
 
 ### In Progress
 - 🟡 Templates implementation:
-  - Video question answering
-  - Multimodal task templates
+  - Pose estimation
+  - Multi-modal tasks
+  - Point cloud processing
 - 🟡 Input/output validation for each task type
 - 🟡 Error handling and progress reporting
 - 🟡 Testing framework setup and initial tests

@@ -1,0 +1,177 @@
+"""
+Inference script for image segmentation models (semantic/instance)
+Generated from template for {{ model_info.name }}
+"""
+
+import os
+import json
+import torch
+import numpy as np
+from PIL import Image, ImageDraw
+import base64
+from io import BytesIO
+import colorsys
+from typing import Dict, Any, List
+
+def load_model():
+    """Load segmentation model and processor"""
+    from transformers import AutoProcessor, {{ model_type.model_class }}
+    
+    processor = AutoProcessor.from_pretrained("./model")
+    model = {{ model_type.model_class }}.from_pretrained(
+        "./model",
+        torch_dtype=torch.float16,
+        device_map="auto"
+    )
+    
+    return model, processor
+
+def load_image(image_path: str) -> Image.Image:
+    """Load and preprocess image"""
+    image = Image.open(image_path)
+    if image.mode != "RGB":
+        image = image.convert("RGB")
+    return image
+
+def create_color_map(num_classes: int) -> Dict[int, tuple]:
+    """Create color map for segmentation classes"""
+    colors = []
+    for i in range(num_classes):
+        hue = i / num_classes
+        rgb = colorsys.hsv_to_rgb(hue, 0.7, 0.9)
+        colors.append(tuple(int(x * 255) for x in rgb))
+    return dict(enumerate(colors))
+
+def create_overlay(
+    image: Image.Image,
+    segmentation: np.ndarray,
+    color_map: Dict[int, tuple],
+    alpha: float = 0.5
+) -> Image.Image:
+    """Create segmentation visualization overlay"""
+    # Create colored mask
+    h, w = segmentation.shape
+    colored_mask = np.zeros((h, w, 3), dtype=np.uint8)
+    for label_id, color in color_map.items():
+        colored_mask[segmentation == label_id] = color
+        
+    # Convert to PIL
+    mask_image = Image.fromarray(colored_mask)
+    
+    # Blend images
+    return Image.blend(image, mask_image, alpha)
+
+def process_segmentation(
+    outputs,
+    processor,
+    is_instance_segmentation: bool = False
+) -> np.ndarray:
+    """Process model outputs to segmentation mask"""
+    if is_instance_segmentation:
+        # Get instance segmentation mask
+        masks = outputs.pred_masks[0]
+        scores = outputs.pred_scores[0]
+        labels = outputs.pred_labels[0]
+        
+        threshold = float(os.getenv("THRESHOLD", {{ model_config.threshold or 0.5 }}))
+        
+        # Create instance mask
+        instance_mask = torch.zeros_like(masks[0])
+        for i, (mask, score) in enumerate(zip(masks, scores)):
+            if score > threshold:
+                instance_mask[mask > 0.5] = i + 1
+                
+        return instance_mask.cpu().numpy()
+    else:
+        # Get semantic segmentation mask
+        logits = outputs.logits
+        mask = torch.argmax(logits, dim=1)[0]
+        return mask.cpu().numpy()
+
+def run_segmentation(
+    image_path: str,
+    model,
+    processor
+) -> Dict[str, Any]:
+    """Run image segmentation"""
+    # Load and process image
+    image = load_image(image_path)
+    inputs = processor(images=image, return_tensors="pt")
+    inputs = {k: v.to(model.device) for k, v in inputs.items()}
+    
+    # Run inference
+    with torch.no_grad():
+        outputs = model(**inputs)
+    
+    # Process outputs
+    is_instance = "{{ model_type.task }}" == "instance-segmentation"
+    segmentation = process_segmentation(outputs, processor, is_instance)
+    
+    # Create visualization
+    color_map = create_color_map(
+        len(outputs.pred_labels[0]) if is_instance 
+        else len(model.config.id2label)
+    )
+    vis_image = create_overlay(image, segmentation, color_map)
+    
+    # Save outputs
+    vis_path = os.path.join("/outputs", "segmentation.png")
+    vis_image.save(vis_path)
+    
+    mask_path = os.path.join("/outputs", "mask.npy")
+    np.save(mask_path, segmentation)
+    
+    # Convert visualization to base64
+    buffered = BytesIO()
+    vis_image.save(buffered, format="PNG")
+    img_str = base64.b64encode(buffered.getvalue()).decode()
+    
+    # Get statistics
+    unique, counts = np.unique(segmentation, return_counts=True)
+    class_stats = {
+        model.config.id2label[int(label_id)]: int(count)
+        for label_id, count in zip(unique, counts)
+        if label_id > 0 or not is_instance  # Skip background for instance seg
+    }
+    
+    results = {
+        "input_image": image_path,
+        "segmentation_mask": mask_path,
+        "visualization": {
+            "path": vis_path,
+            "base64": img_str
+        },
+        "statistics": {
+            "total_pixels": segmentation.size,
+            "class_pixels": class_stats
+        },
+        "parameters": {
+            "threshold": float(os.getenv("THRESHOLD", {{ model_config.threshold or 0.5 }}))
+            if is_instance else None
+        },
+        "class_mapping": model.config.id2label
+    }
+    
+    if is_instance:
+        results["instance_count"] = len(unique) - 1  # Subtract background
+        
+    return results
+
+def main():
+    """Main inference function"""
+    # Get input path
+    image_path = os.getenv("MODEL_INPUT", "/inputs/image.jpg")
+    
+    # Load model
+    model, processor = load_model()
+    
+    # Run segmentation
+    results = run_segmentation(image_path, model, processor)
+    
+    # Save results
+    output_file = os.path.join("/outputs", "results.json")
+    with open(output_file, "w") as f:
+        json.dump(results, f, indent=2)
+
+if __name__ == "__main__":
+    main()
