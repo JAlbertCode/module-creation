@@ -1,0 +1,100 @@
+"""
+Inference script for document question answering models
+Generated for {{ model_info.name }}
+"""
+
+import os
+import json
+import torch
+from PIL import Image
+import pytesseract
+from typing import Dict, Any
+
+def load_model():
+    """Load document QA model and processor"""
+    from transformers import AutoProcessor, {{ model_type.model_class }}
+    
+    processor = AutoProcessor.from_pretrained("./model")
+    model = {{ model_type.model_class }}.from_pretrained(
+        "./model",
+        torch_dtype=torch.float16,
+        device_map="auto"
+    )
+    return model, processor
+
+def extract_text(image: Image.Image) -> str:
+    """Extract text using OCR"""
+    config = '--psm 3'  # Fully automatic page segmentation
+    return pytesseract.image_to_string(image, config=config)
+
+def process_document(
+    image_path: str,
+    question: str,
+    model,
+    processor
+) -> Dict[str, Any]:
+    """Process document question answering"""
+    # Load document
+    image = Image.open(image_path).convert('RGB')
+    
+    # Extract text if model supports it
+    extracted_text = None
+    if hasattr(model.config, "use_ocr"):
+        extracted_text = extract_text(image)
+    
+    # Process inputs
+    inputs = processor(
+        images=image,
+        text=question,
+        return_tensors="pt"
+    )
+    
+    # Add extracted text if supported
+    if extracted_text and hasattr(model.config, "use_ocr"):
+        inputs["ocr_text"] = [extracted_text]
+    
+    # Move to device
+    inputs = {k: v.to(model.device) for k, v in inputs.items()}
+    
+    # Run inference
+    with torch.no_grad():
+        outputs = model.generate(
+            **inputs,
+            max_new_tokens={{ model_config.max_new_tokens or 100 }},
+            num_beams={{ model_config.num_beams or 4 }},
+            temperature={{ model_config.temperature or 0.7 }}
+        )
+    
+    # Decode answer
+    answer = processor.decode(outputs[0], skip_special_tokens=True)
+    
+    result = {
+        "input_document": image_path,
+        "question": question,
+        "answer": answer,
+        "parameters": {
+            "max_new_tokens": {{ model_config.max_new_tokens or 100 }},
+            "num_beams": {{ model_config.num_beams or 4 }},
+            "temperature": {{ model_config.temperature or 0.7 }}
+        }
+    }
+    
+    if extracted_text:
+        result["extracted_text"] = extracted_text
+        
+    return result
+
+def main():
+    """Main inference function"""
+    image_path = os.getenv("IMAGE_PATH", "/inputs/document.jpg")
+    question = os.getenv("MODEL_INPUT", "What is this document about?")
+    
+    model, processor = load_model()
+    results = process_document(image_path, question, model, processor)
+    
+    output_file = os.path.join("/outputs", "results.json")
+    with open(output_file, "w") as f:
+        json.dump(results, f, indent=2)
+
+if __name__ == "__main__":
+    main()

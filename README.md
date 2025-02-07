@@ -23,6 +23,7 @@ This tool helps you convert any Hugging Face model into a Lilypad module that ca
   - Video models (classification, text-to-video generation, captioning)
   - Specialized vision models (detection, segmentation, depth estimation, pose)
   - Multimodal models (VQA, document understanding)
+  - Point cloud models (classification, segmentation)
 - ✅ Templates for model tasks:
   - Text generation and classification
   - Image generation and classification
@@ -30,10 +31,17 @@ This tool helps you convert any Hugging Face model into a Lilypad module that ca
   - Video processing (classification, generation, captioning)
   - Specialized vision (object detection, segmentation, depth, pose)
   - Multimodal (visual question answering, document QA)
+  - Point cloud processing (classification, segmentation)
 - ✅ Command-line interface:
   - Model conversion
   - Docker image building
   - Module testing
+
+### In Progress
+- 🟡 Graph neural network support
+- 🟡 Time series model support
+- 🟡 Input/output validation for each task type
+- 🟡 Error handling and progress reporting
 
 ### In Progress
 - 🟡 Templates implementation:
