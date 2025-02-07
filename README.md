@@ -40,11 +40,7 @@ This tool helps you convert any Hugging Face model into a Lilypad module that ca
 ### In Progress
 - 🟡 Graph neural network support
 - 🟡 Time series model support
-- 🟡 Input/output validation for each task type
-- 🟡 Error handling and progress reporting
-
-### In Progress
-- 🟡 Templates implementation:
+- 🟡 Model type implementations:
   - Pose estimation
   - Multi-modal tasks
   - Point cloud processing
