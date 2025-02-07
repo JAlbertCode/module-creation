@@ -1,0 +1,196 @@
+"""
+Inference script for object detection models
+Generated from template for {{ model_info.name }}
+"""
+
+import os
+import json
+import torch
+import numpy as np
+from PIL import Image, ImageDraw
+import base64
+from io import BytesIO
+from typing import Dict, Any, List, Tuple
+
+def load_model():
+    """Load object detection model and processor"""
+    from transformers import AutoProcessor, {{ model_type.model_class }}
+    
+    processor = AutoProcessor.from_pretrained("./model")
+    model = {{ model_type.model_class }}.from_pretrained(
+        "./model",
+        torch_dtype=torch.float16,
+        device_map="auto"
+    )
+    
+    return model, processor
+
+def load_image(image_path: str) -> Image.Image:
+    """Load and preprocess image
+    
+    Args:
+        image_path: Path to input image
+        
+    Returns:
+        PIL Image object
+    """
+    image = Image.open(image_path)
+    if image.mode != "RGB":
+        image = image.convert("RGB")
+    return image
+
+def draw_boxes(
+    image: Image.Image,
+    detections: List[Dict[str, Any]],
+    colors: Dict[str, Tuple[int, int, int]] = None
+) -> Image.Image:
+    """Draw detected objects on image
+    
+    Args:
+        image: Input image
+        detections: List of detection results
+        colors: Optional color mapping for classes
+        
+    Returns:
+        Image with drawn detections
+    """
+    draw = ImageDraw.Draw(image)
+    
+    # Create color mapping if not provided
+    if colors is None:
+        unique_classes = set(d["label"] for d in detections)
+        colors = {}
+        for i, class_name in enumerate(unique_classes):
+            hue = i / len(unique_classes)
+            rgb = tuple(int(x * 255) for x in colorsys.hsv_to_rgb(hue, 0.7, 0.9))
+            colors[class_name] = rgb
+    
+    # Draw each detection
+    for detection in detections:
+        if detection["confidence"] < float(os.getenv("THRESHOLD", {{ model_config.threshold or 0.5 }})):
+            continue
+            
+        # Get box coordinates
+        box = detection["bbox"]
+        x1, y1, x2, y2 = map(float, box)
+        
+        # Get class color
+        color = colors.get(detection["label"], (255, 0, 0))
+        
+        # Draw box
+        draw.rectangle(
+            [(x1, y1), (x2, y2)],
+            outline=color,
+            width=3
+        )
+        
+        # Draw label
+        label = f"{detection['label']}: {detection['confidence']:.2f}"
+        text_bbox = draw.textbbox((x1, y1 - 10), label)
+        draw.rectangle(text_bbox, fill=color)
+        draw.text(
+            (x1, y1 - 10),
+            label,
+            fill="white"
+        )
+    
+    return image
+
+def run_detection(
+    image_path: str,
+    model,
+    processor
+) -> Dict[str, Any]:
+    """Run object detection
+    
+    Args:
+        image_path: Path to input image
+        model: Detection model
+        processor: Image processor
+        
+    Returns:
+        Dict containing detections and visualization
+    """
+    # Load and process image
+    image = load_image(image_path)
+    inputs = processor(images=image, return_tensors="pt")
+    inputs = {k: v.to(model.device) for k, v in inputs.items()}
+    
+    # Run inference
+    with torch.no_grad():
+        outputs = model(**inputs)
+    
+    # Post-process outputs
+    target_sizes = torch.tensor([image.size[::-1]])
+    results = processor.post_process_object_detection(
+        outputs,
+        target_sizes=target_sizes,
+        threshold=float(os.getenv("THRESHOLD", {{ model_config.threshold or 0.5 }}))
+    )[0]
+    
+    # Format detections
+    detections = []
+    for score, label, box in zip(
+        results["scores"],
+        results["labels"],
+        results["boxes"]
+    ):
+        detections.append({
+            "label": model.config.id2label[label.item()],
+            "confidence": float(score),
+            "bbox": box.tolist()
+        })
+        
+    # Create visualization
+    vis_image = image.copy()
+    vis_image = draw_boxes(vis_image, detections)
+    
+    # Save visualization
+    vis_path = os.path.join("/outputs", "visualization.png")
+    vis_image.save(vis_path)
+    
+    # Convert to base64
+    buffered = BytesIO()
+    vis_image.save(buffered, format="PNG")
+    img_str = base64.b64encode(buffered.getvalue()).decode()
+    
+    # Get statistics
+    class_counts = {}
+    for det in detections:
+        class_counts[det["label"]] = class_counts.get(det["label"], 0) + 1
+    
+    return {
+        "input_image": image_path,
+        "detections": detections,
+        "visualization": {
+            "path": vis_path,
+            "base64": img_str
+        },
+        "statistics": {
+            "total_detections": len(detections),
+            "class_counts": class_counts
+        },
+        "parameters": {
+            "threshold": float(os.getenv("THRESHOLD", {{ model_config.threshold or 0.5 }}))
+        },
+        "class_mapping": model.config.id2label
+    }
+
+def main():
+    """Main inference function"""
+    # Get input path
+    image_path = os.getenv("MODEL_INPUT", "/inputs/image.jpg")
+    
+    # Load model
+    model, processor = load_model()
+    
+    # Run detection
+    results = run_detection(image_path, model, processor)
+    
+    # Save results
+    output_file = os.path.join("/outputs", "results.json")
+    with open(output_file, "w") as f:
+        json.dump(results, f, indent=2)
+
+if __name__ == "__main__":
+    main()
