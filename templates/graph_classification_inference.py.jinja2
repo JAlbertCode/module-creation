@@ -1,0 +1,139 @@
+"""
+Inference script for graph classification models
+Generated for {{ model_info.name }}
+"""
+
+import os
+import json
+import torch
+import numpy as np
+import networkx as nx
+import matplotlib.pyplot as plt
+from torch_geometric.data import Data
+from torch_geometric.utils import to_networkx
+from typing import Dict, Any
+
+def load_model():
+    """Load graph classification model"""
+    from transformers import AutoProcessor, {{ model_type.model_class }}
+    
+    processor = AutoProcessor.from_pretrained("./model")
+    model = {{ model_type.model_class }}.from_pretrained(
+        "./model",
+        torch_dtype=torch.float16,
+        device_map="auto"
+    )
+    return model, processor
+
+def load_graph(file_path: str) -> Data:
+    """Load graph from PyG data file"""
+    data = torch.load(file_path)
+    if not isinstance(data, Data):
+        raise ValueError("Input must be a PyG Data object")
+    return data
+
+def visualize_graph(
+    graph: nx.Graph,
+    predictions: Dict[str, Any] = None,
+    title: str = None
+) -> str:
+    """Create graph visualization"""
+    plt.figure(figsize=(10, 10))
+    
+    pos = nx.spring_layout(graph)
+    
+    # Draw nodes
+    nx.draw_networkx_nodes(
+        graph,
+        pos,
+        node_color='lightblue',
+        node_size=500
+    )
+    
+    # Draw edges
+    nx.draw_networkx_edges(
+        graph,
+        pos,
+        edge_color='gray'
+    )
+    
+    # Add labels
+    nx.draw_networkx_labels(graph, pos)
+    
+    if title:
+        plt.title(title)
+        
+    # Save visualization
+    output_path = os.path.join("/outputs", "graph_vis.png")
+    plt.savefig(output_path)
+    plt.close()
+    
+    return output_path
+
+def run_classification(
+    file_path: str,
+    model,
+    processor
+) -> Dict[str, Any]:
+    """Run graph classification"""
+    # Load graph
+    graph_data = load_graph(file_path)
+    
+    # Process inputs
+    inputs = processor(
+        graph_data,
+        return_tensors="pt"
+    ).to(model.device)
+    
+    # Run inference
+    with torch.no_grad():
+        outputs = model(**inputs)
+    
+    # Get predictions
+    probs = torch.nn.functional.softmax(outputs.logits[0], dim=-1)
+    pred_idx = torch.argmax(probs).item()
+    prediction = {
+        "label": model.config.id2label[pred_idx],
+        "confidence": float(probs[pred_idx])
+    }
+    
+    # Create visualization
+    nx_graph = to_networkx(graph_data)
+    vis_path = visualize_graph(
+        nx_graph,
+        predictions=prediction,
+        title=f"Predicted: {prediction['label']} ({prediction['confidence']:.2f})"
+    )
+    
+    # Calculate graph metrics
+    metrics = {
+        "num_nodes": graph_data.num_nodes,
+        "num_edges": graph_data.num_edges,
+        "average_degree": float(2 * graph_data.num_edges / graph_data.num_nodes),
+        "num_features": graph_data.num_features
+    }
+    
+    return {
+        "input_file": file_path,
+        "prediction": prediction,
+        "graph_metrics": metrics,
+        "visualization": vis_path,
+        "parameters": {
+            "model_type": model.config.model_type,
+            "num_labels": len(model.config.id2label)
+        }
+    }
+
+def main():
+    """Main inference function"""
+    file_path = os.getenv("MODEL_INPUT", "/inputs/graph.pt")
+    
+    model, processor = load_model()
+    results = run_classification(file_path, model, processor)
+    
+    output_file = os.path.join("/outputs", "results.json")
+    with open(output_file, "w") as f:
+        json.dump(results, f, indent=2)
+
+if __name__ == "__main__":
+    main()
