@@ -20,27 +20,27 @@ This tool helps you convert any Hugging Face model into a Lilypad module that ca
   - Text models (classification, generation)
   - Image models (classification, generation)
   - Audio models (speech recognition, text-to-speech, classification)
-  - Video models (classification, text-to-video generation)
+  - Video models (classification, text-to-video generation, captioning)
 - ✅ Templates for model tasks:
   - Text generation and classification
   - Image generation and classification
-  - Audio processing (ASR, TTS)
-  - Video classification
-  - Text-to-video generation
+  - Audio processing (ASR, TTS, classification)
+  - Video processing (classification, generation, captioning)
+- ✅ Command-line interface:
+  - Model conversion
+  - Docker image building
+  - Module testing
 
 ### In Progress
 - 🟡 Templates implementation:
-  - Video captioning/video-to-text
   - Video question answering
   - Multimodal task templates
 - 🟡 Input/output validation for each task type
 - 🟡 Error handling and progress reporting
-- 🟡 Testing framework setup and initial tests 
+- 🟡 Testing framework setup and initial tests
 
 ### Upcoming Tasks
-- 📝 Command-line interface for module generation
 - 📝 Web interface development
-- 📝 Docker image building and testing
 - 📝 Additional specialized task support:
   - Point cloud processing
   - Graph neural networks
@@ -61,29 +61,6 @@ This tool helps you convert any Hugging Face model into a Lilypad module that ca
   - Batch processing support
   - Resource usage optimization
   - Model quantization options
-
-## Features
-
-- Support for multiple model types:
-  - Text models (classification, generation, translation)
-  - Image models (classification, detection, segmentation)
-  - Audio models (speech recognition, text-to-speech)
-  - Video models (classification)
-  - Multi-modal models (VQA, document QA)
-  - Specialized models (point clouds, graphs)
-
-- Automatic detection of:
-  - Model task and architecture
-  - Hardware requirements
-  - Framework dependencies
-  - Input/output formats
-
-- Generated module includes:
-  - Dockerfile with all dependencies
-  - Inference code tailored to model type
-  - Lilypad module configuration
-  - Documentation and examples
-  - Test scripts
 
 ## Installation
 
@@ -106,6 +83,25 @@ pip install -r requirements.txt
 
 ## Usage
 
+### Command Line Interface
+
+Convert a Hugging Face model to a Lilypad module:
+```bash
+python cli.py convert bert-base-uncased --output ./my-module
+```
+
+Build a Docker image for the module:
+```bash
+python cli.py build ./my-module --image-name my-model:latest
+```
+
+Run module tests:
+```bash
+python cli.py test ./my-module
+```
+
+### Web Interface
+
 1. Start the web interface:
 ```bash
 python app.py
@@ -124,10 +120,6 @@ python app.py
 7. Download and extract the generated zip file
 
 8. Follow the instructions in the generated README.md to test and deploy your module
-
-## Command Line Interface
-
-Coming soon!
 
 ## Development
 

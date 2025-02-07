@@ -1,0 +1,197 @@
+"""
+Inference script for video-to-text models (captioning and question answering)
+Generated from template for {{ model_info.name }}
+"""
+
+import os
+import json
+import torch
+import numpy as np
+import decord
+from typing import Dict, Any, List, Optional
+
+def load_model():
+    """Load video-to-text model and processor"""
+    from transformers import AutoProcessor, {{ model_type.model_class }}
+    
+    processor = AutoProcessor.from_pretrained("./model")
+    model = {{ model_type.model_class }}.from_pretrained(
+        "./model",
+        torch_dtype=torch.float16,
+        device_map="auto"
+    )
+    
+    return model, processor
+
+def load_video(video_path: str) -> Dict[str, np.ndarray]:
+    """Load and sample video frames
+    
+    Args:
+        video_path: Path to video file
+        
+    Returns:
+        Dict containing sampled frames and metadata
+    """
+    # Configure decord
+    decord.bridge.set_bridge("torch")
+    
+    # Load video
+    video_reader = decord.VideoReader(video_path)
+    
+    # Get parameters
+    fps = float(os.getenv("FPS", {{ model_config.fps or 4 }}))
+    max_frames = int(os.getenv("MAX_FRAMES", {{ model_config.max_frames or 32 }}))
+    
+    # Calculate frame indices
+    video_fps = video_reader.get_avg_fps()
+    total_frames = len(video_reader)
+    sample_rate = int(video_fps / fps)
+    frame_indices = list(range(0, total_frames, sample_rate))
+    
+    # Limit to max frames
+    if len(frame_indices) > max_frames:
+        step = len(frame_indices) // max_frames
+        frame_indices = frame_indices[::step][:max_frames]
+    
+    # Read frames
+    frames = video_reader.get_batch(frame_indices)
+    
+    return {
+        "frames": frames,
+        "metadata": {
+            "fps": video_fps,
+            "total_frames": total_frames,
+            "sampled_frames": len(frame_indices),
+            "frame_indices": frame_indices,
+            "width": video_reader.width,
+            "height": video_reader.height,
+            "duration": total_frames / video_fps
+        }
+    }
+
+def process_video(
+    video_data: Dict[str, Any],
+    processor,
+    question: Optional[str] = None
+) -> Dict[str, torch.Tensor]:
+    """Process video frames for model input
+    
+    Args:
+        video_data: Dict containing video frames and metadata
+        processor: Video processor
+        question: Optional question for VQA tasks
+        
+    Returns:
+        Dict containing processed inputs
+    """
+    # Process video frames
+    inputs = processor(
+        videos=video_data["frames"],
+        {% if model_type.task == "visual-question-answering" %}
+        text=question,
+        {% endif %}
+        return_tensors="pt"
+    )
+    
+    return inputs
+
+def generate_output(
+    video_path: str,
+    model,
+    processor,
+    question: Optional[str] = None
+) -> Dict[str, Any]:
+    """Generate text output from video
+    
+    Args:
+        video_path: Path to video file
+        model: Video-to-text model
+        processor: Video processor
+        question: Optional question for VQA tasks
+        
+    Returns:
+        Dict containing generated text and metadata
+    """
+    # Load video
+    video_data = load_video(video_path)
+    
+    # Process inputs
+    inputs = process_video(video_data, processor, question)
+    inputs = {k: v.to(model.device) for k, v in inputs.items()}
+    
+    # Generation parameters
+    max_length = int(os.getenv("MAX_LENGTH", {{ model_config.max_length or 50 }}))
+    num_beams = int(os.getenv("NUM_BEAMS", {{ model_config.num_beams or 4 }}))
+    
+    # Generate text
+    with torch.no_grad():
+        outputs = model.generate(
+            **inputs,
+            max_length=max_length,
+            num_beams=num_beams,
+            early_stopping=True
+        )
+    
+    # Decode output
+    generated_text = processor.batch_decode(
+        outputs,
+        skip_special_tokens=True
+    )[0]
+    
+    # Format results
+    results = {
+        "input_video": video_path,
+        {% if model_type.task == "visual-question-answering" %}
+        "question": question,
+        "answer": generated_text,
+        {% else %}
+        "caption": generated_text,
+        {% endif %}
+        "parameters": {
+            "max_length": max_length,
+            "num_beams": num_beams,
+            "fps": float(os.getenv("FPS", {{ model_config.fps or 4 }})),
+            "max_frames": int(os.getenv("MAX_FRAMES", {{ model_config.max_frames or 32 }}))
+        },
+        "video_metadata": video_data["metadata"]
+    }
+    
+    # Save a preview frame
+    preview_path = os.path.join("/outputs", "preview.jpg")
+    first_frame = video_data["frames"][0].cpu().numpy()
+    if first_frame.dtype != np.uint8:
+        first_frame = (first_frame * 255).astype(np.uint8)
+    from PIL import Image
+    Image.fromarray(first_frame).save(preview_path)
+    results["preview_frame"] = preview_path
+    
+    return results
+
+def main():
+    """Main inference function"""
+    # Get inputs
+    video_path = os.getenv("MODEL_INPUT", "/inputs/video.mp4")
+    {% if model_type.task == "visual-question-answering" %}
+    question = os.getenv("QUESTION", "What is happening in this video?")
+    {% endif %}
+    
+    # Load model
+    model, processor = load_model()
+    
+    # Generate output
+    results = generate_output(
+        video_path,
+        model,
+        processor,
+        {% if model_type.task == "visual-question-answering" %}
+        question=question
+        {% endif %}
+    )
+    
+    # Save results
+    output_file = os.path.join("/outputs", "results.json")
+    with open(output_file, "w") as f:
+        json.dump(results, f, indent=2)
+
+if __name__ == "__main__":
+    main()
