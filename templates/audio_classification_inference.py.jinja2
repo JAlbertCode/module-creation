@@ -1,0 +1,151 @@
+"""
+Inference script for audio classification models
+Generated from template for {{ model_info.name }}
+"""
+
+import os
+import json
+import torch
+import librosa
+import numpy as np
+from typing import Dict, Any, List
+
+def load_model():
+    """Load classification model and processor"""
+    from transformers import AutoProcessor, {{ model_type.model_class }}
+    
+    processor = AutoProcessor.from_pretrained("./model")
+    model = {{ model_type.model_class }}.from_pretrained(
+        "./model",
+        torch_dtype=torch.float16,
+        device_map="auto"
+    )
+    
+    return model, processor
+
+def load_audio(audio_path: str) -> tuple:
+    """Load and preprocess audio file
+    
+    Args:
+        audio_path: Path to audio file
+        
+    Returns:
+        Tuple of (waveform, sample_rate)
+    """
+    try:
+        # Load audio file
+        waveform, sample_rate = librosa.load(
+            audio_path,
+            sr={{ model_config.sample_rate or "None" }}
+        )
+        
+        # Convert to mono if stereo
+        if len(waveform.shape) > 1:
+            waveform = librosa.to_mono(waveform)
+            
+        return waveform, sample_rate
+        
+    except Exception as e:
+        raise RuntimeError(f"Error loading audio file: {str(e)}")
+
+def classify_audio(
+    audio_path: str,
+    model: Any,
+    processor: Any
+) -> Dict[str, Any]:
+    """Classify audio file
+    
+    Args:
+        audio_path: Path to audio file
+        model: Classification model
+        processor: Audio processor
+        
+    Returns:
+        Dict containing predictions and metadata
+    """
+    # Load audio
+    waveform, sample_rate = load_audio(audio_path)
+    
+    # Get parameters from environment or use defaults
+    top_k = int(os.getenv("TOP_K", {{ model_config.top_k or 5 }}))
+    threshold = float(os.getenv("THRESHOLD", {{ model_config.threshold or 0.5 }}))
+    average_logits = os.getenv("AVERAGE_LOGITS", "").lower() == "true"
+    
+    # Process audio
+    inputs = processor(
+        waveform,
+        sampling_rate=sample_rate,
+        return_tensors="pt"
+    ).to(model.device)
+    
+    # Get predictions
+    with torch.no_grad():
+        outputs = model(**inputs)
+    
+    # Get probabilities
+    if average_logits and outputs.logits.dim() > 2:
+        # Average logits over time dimension for long audio
+        logits = outputs.logits.mean(dim=1)
+    else:
+        logits = outputs.logits
+        
+    probs = torch.nn.functional.softmax(logits, dim=-1)
+    
+    # Get top predictions
+    if probs.dim() > 1:
+        probs = probs[0]  # Take first element if batch
+    
+    top_probs, top_indices = torch.topk(probs, k=min(top_k, len(probs)))
+    
+    # Format predictions
+    predictions = []
+    for prob, idx in zip(top_probs, top_indices):
+        # Skip if below threshold
+        if prob < threshold:
+            continue
+            
+        predictions.append({
+            "label": model.config.id2label[idx.item()],
+            "confidence": float(prob),
+            "label_id": idx.item()
+        })
+    
+    # Format results
+    results = {
+        "input_audio": audio_path,
+        "predictions": predictions,
+        "parameters": {
+            "top_k": top_k,
+            "threshold": threshold,
+            "average_logits": average_logits
+        },
+        "audio_metadata": {
+            "duration": len(waveform) / sample_rate,
+            "sample_rate": sample_rate
+        }
+    }
+    
+    # Add class mappings if available
+    if hasattr(model.config, "id2label"):
+        results["class_mapping"] = model.config.id2label
+    
+    return results
+
+def main():
+    """Main inference function"""
+    # Get input audio path
+    audio_path = os.getenv("MODEL_INPUT", "/inputs/audio.wav")
+    
+    # Load model
+    model, processor = load_model()
+    
+    # Run classification
+    results = classify_audio(audio_path, model, processor)
+    
+    # Save results
+    output_file = os.path.join("/outputs", "results.json")
+    with open(output_file, "w") as f:
+        json.dump(results, f, indent=2)
+
+if __name__ == "__main__":
+    main()

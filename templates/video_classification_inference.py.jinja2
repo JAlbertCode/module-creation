@@ -1,0 +1,186 @@
+"""
+Inference script for video classification models
+Generated from template for {{ model_info.name }}
+"""
+
+import os
+import json
+import torch
+import numpy as np
+import decord
+from typing import Dict, Any, List
+
+def load_model():
+    """Load video classification model and processor"""
+    from transformers import AutoProcessor, {{ model_type.model_class }}
+    
+    processor = AutoProcessor.from_pretrained("./model")
+    model = {{ model_type.model_class }}.from_pretrained(
+        "./model",
+        torch_dtype=torch.float16,
+        device_map="auto"
+    )
+    
+    return model, processor
+
+def load_video(video_path: str) -> Dict[str, np.ndarray]:
+    """Load and sample video frames
+    
+    Args:
+        video_path: Path to video file
+        
+    Returns:
+        Dict containing sampled frames
+    """
+    # Configure decord to use CPU for loading
+    decord.bridge.set_bridge("torch")
+    
+    # Load video
+    video_reader = decord.VideoReader(video_path)
+    
+    # Get parameters
+    fps = float(os.getenv("FPS", {{ model_config.fps or 4 }}))
+    max_frames = int(os.getenv("MAX_FRAMES", {{ model_config.max_frames or 32 }}))
+    
+    # Calculate frame indices to sample
+    video_fps = video_reader.get_avg_fps()
+    total_frames = len(video_reader)
+    
+    # Sample frames evenly across video
+    sample_rate = int(video_fps / fps)
+    frame_indices = list(range(0, total_frames, sample_rate))
+    
+    # Limit to max frames if needed
+    if len(frame_indices) > max_frames:
+        # Sample evenly from available frames
+        step = len(frame_indices) // max_frames
+        frame_indices = frame_indices[::step][:max_frames]
+    
+    # Read frames
+    frames = video_reader.get_batch(frame_indices)
+    
+    return {
+        "frames": frames,
+        "frame_indices": frame_indices,
+        "metadata": {
+            "fps": video_fps,
+            "total_frames": total_frames,
+            "sampled_frames": len(frame_indices),
+            "width": video_reader.width,
+            "height": video_reader.height
+        }
+    }
+
+def process_frames(frames: torch.Tensor, processor) -> Dict[str, torch.Tensor]:
+    """Process video frames for model input
+    
+    Args:
+        frames: Video frames tensor
+        processor: Video processor
+        
+    Returns:
+        Dict containing processed frames
+    """
+    # Process frames with processor
+    inputs = processor(
+        videos=frames,
+        return_tensors="pt"
+    )
+    
+    return inputs
+
+def classify_video(
+    video_path: str,
+    model,
+    processor
+) -> Dict[str, Any]:
+    """Run video classification
+    
+    Args:
+        video_path: Path to video file
+        model: Classification model
+        processor: Video processor
+        
+    Returns:
+        Dict containing predictions and metadata
+    """
+    # Get classification parameters
+    top_k = int(os.getenv("TOP_K", {{ model_config.top_k or 5 }}))
+    threshold = float(os.getenv("THRESHOLD", {{ model_config.threshold or 0.5 }}))
+    
+    # Load and process video
+    video_data = load_video(video_path)
+    inputs = process_frames(video_data["frames"], processor)
+    
+    # Move inputs to device
+    inputs = {k: v.to(model.device) for k, v in inputs.items()}
+    
+    # Get predictions
+    with torch.no_grad():
+        outputs = model(**inputs)
+    
+    # Process logits
+    if outputs.logits.dim() > 2:
+        # Average over frame dimension if needed
+        logits = outputs.logits.mean(dim=1)
+    else:
+        logits = outputs.logits
+        
+    # Get probabilities
+    probs = torch.nn.functional.softmax(logits[0], dim=-1)
+    
+    # Get top predictions
+    top_probs, top_indices = torch.topk(probs, k=min(top_k, len(probs)))
+    
+    # Format predictions
+    predictions = []
+    for prob, idx in zip(top_probs, top_indices):
+        if prob < threshold:
+            continue
+            
+        predictions.append({
+            "label": model.config.id2label[idx.item()],
+            "confidence": float(prob),
+            "label_id": idx.item()
+        })
+    
+    # Format results
+    results = {
+        "input_video": video_path,
+        "predictions": predictions,
+        "parameters": {
+            "top_k": top_k,
+            "threshold": threshold,
+            "fps": float(os.getenv("FPS", {{ model_config.fps or 4 }})),
+            "max_frames": int(os.getenv("MAX_FRAMES", {{ model_config.max_frames or 32 }}))
+        },
+        "video_metadata": video_data["metadata"],
+        "frame_info": {
+            "sampled_indices": video_data["frame_indices"]
+        }
+    }
+    
+    # Add class mapping if available
+    if hasattr(model.config, "id2label"):
+        results["class_mapping"] = model.config.id2label
+    
+    return results
+
+def main():
+    """Main inference function"""
+    # Get input video path
+    video_path = os.getenv("MODEL_INPUT", "/inputs/video.mp4")
+    
+    # Load model
+    model, processor = load_model()
+    
+    # Run classification
+    results = classify_video(video_path, model, processor)
+    
+    # Save results
+    output_file = os.path.join("/outputs", "results.json")
+    with open(output_file, "w") as f:
+        json.dump(results, f, indent=2)
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,190 @@
+"""
+Inference script for text-to-video generation models
+Generated from template for {{ model_info.name }}
+"""
+
+import os
+import json
+import torch
+import numpy as np
+from PIL import Image
+import imageio
+from typing import Dict, Any, List, Optional
+
+def load_model():
+    """Load text-to-video generation model"""
+    {% if model_type.framework == "diffusers" %}
+    from diffusers import {{ model_type.pipeline_class }}
+    
+    pipe = {{ model_type.pipeline_class }}.from_pretrained(
+        "./model",
+        torch_dtype=torch.float16,
+        variant="fp16"
+    ).to("cuda")
+    
+    return pipe
+    {% else %}
+    from transformers import AutoProcessor, {{ model_type.model_class }}
+    
+    processor = AutoProcessor.from_pretrained("./model")
+    model = {{ model_type.model_class }}.from_pretrained(
+        "./model",
+        torch_dtype=torch.float16,
+        device_map="auto"
+    )
+    
+    return model, processor
+    {% endif %}
+
+def save_video(
+    frames: List[np.ndarray],
+    output_path: str,
+    fps: int = 8,
+    codec: str = "libx264",
+    quality: Optional[int] = None
+) -> None:
+    """Save video frames to file
+    
+    Args:
+        frames: List of video frames as numpy arrays
+        output_path: Path to save video
+        fps: Frames per second
+        codec: Video codec to use
+        quality: Video quality (0-10, lower is better quality)
+    """
+    # Convert frames to uint8 if needed
+    if frames[0].dtype != np.uint8:
+        frames = [(frame * 255).astype(np.uint8) for frame in frames]
+    
+    # Create writer with settings
+    writer = imageio.get_writer(
+        output_path,
+        fps=fps,
+        codec=codec,
+        quality=quality,
+        macro_block_size=1  # Required for some dimensions
+    )
+    
+    # Write frames
+    for frame in frames:
+        writer.append_data(frame)
+        
+    writer.close()
+
+def generate_video(
+    prompt: str,
+    {% if not model_type.framework == "diffusers" %}
+    model,
+    processor,
+    {% else %}
+    pipe,
+    {% endif %}
+) -> Dict[str, Any]:
+    """Generate video from text prompt
+    
+    Args:
+        prompt: Text prompt describing video to generate
+        {% if not model_type.framework == "diffusers" %}
+        model: Generation model
+        processor: Text/video processor
+        {% else %}
+        pipe: Diffusers pipeline
+        {% endif %}
+        
+    Returns:
+        Dict containing generated video and metadata
+    """
+    # Get generation parameters
+    num_frames = int(os.getenv("NUM_FRAMES", {{ model_config.num_frames or 16 }}))
+    height = int(os.getenv("HEIGHT", {{ model_config.height or 256 }}))
+    width = int(os.getenv("WIDTH", {{ model_config.width or 256 }}))
+    fps = int(os.getenv("FPS", {{ model_config.fps or 8 }}))
+    num_steps = int(os.getenv("NUM_STEPS", {{ model_config.num_inference_steps or 50 }}))
+    guidance_scale = float(os.getenv("GUIDANCE_SCALE", {{ model_config.guidance_scale or 7.5 }}))
+    
+    {% if model_type.framework == "diffusers" %}
+    # Generate with diffusers pipeline
+    output = pipe(
+        prompt=prompt,
+        num_frames=num_frames,
+        height=height,
+        width=width,
+        num_inference_steps=num_steps,
+        guidance_scale=guidance_scale
+    )
+    
+    frames = output.frames[0]
+    {% else %}
+    # Process prompt
+    inputs = processor(
+        text=prompt,
+        return_tensors="pt"
+    ).to(model.device)
+    
+    # Generate frames
+    with torch.no_grad():
+        outputs = model.generate(
+            **inputs,
+            num_frames=num_frames,
+            height=height,
+            width=width,
+            num_inference_steps=num_steps,
+            guidance_scale=guidance_scale
+        )
+        
+    frames = outputs.frames[0].cpu().numpy()
+    {% endif %}
+    
+    # Save video file
+    output_path = os.path.join("/outputs", "generated_video.mp4")
+    save_video(
+        frames=frames,
+        output_path=output_path,
+        fps=fps,
+        quality=8  # Good quality while maintaining reasonable file size
+    )
+    
+    # Save a preview image (first frame)
+    preview_path = os.path.join("/outputs", "preview.png")
+    Image.fromarray(frames[0]).save(preview_path)
+    
+    return {
+        "prompt": prompt,
+        "video_path": output_path,
+        "preview_path": preview_path,
+        "parameters": {
+            "num_frames": num_frames,
+            "height": height,
+            "width": width,
+            "fps": fps,
+            "num_inference_steps": num_steps,
+            "guidance_scale": guidance_scale
+        },
+        "metadata": {
+            "duration": num_frames / fps,
+            "frame_count": num_frames,
+            "resolution": f"{width}x{height}"
+        }
+    }
+
+def main():
+    """Main inference function"""
+    # Get input prompt
+    prompt = os.getenv("MODEL_INPUT", "A beautiful landscape transforming through seasons")
+    
+    # Load model
+    {% if model_type.framework == "diffusers" %}
+    pipe = load_model()
+    results = generate_video(prompt, pipe)
+    {% else %}
+    model, processor = load_model()
+    results = generate_video(prompt, model, processor)
+    {% endif %}
+    
+    # Save results
+    output_file = os.path.join("/outputs", "results.json")
+    with open(output_file, "w") as f:
+        json.dump(results, f, indent=2)
+
+if __name__ == "__main__":
+    main()

@@ -23,102 +23,116 @@ def load_model():
     
     return model, processor
 
-def load_audio(audio_path: str) -> Dict[str, Any]:
-    """Load and preprocess audio file"""
+def load_audio(audio_path: str) -> tuple:
+    """Load and preprocess audio file
+    
+    Args:
+        audio_path: Path to audio file
+        
+    Returns:
+        Tuple of (waveform, sample_rate)
+    """
     try:
-        # Load audio file
+        # Load audio file with target sample rate
         waveform, sample_rate = librosa.load(
             audio_path,
-            sr={{ model_config.sampling_rate or 16000 }}  # Target sampling rate
+            sr={{ model_config.sample_rate or 16000 }}
         )
         
         # Convert to mono if stereo
         if len(waveform.shape) > 1:
             waveform = librosa.to_mono(waveform)
-        
-        return {
-            "waveform": waveform,
-            "sample_rate": sample_rate,
-            "duration": len(waveform) / sample_rate
-        }
+            
+        return waveform, sample_rate
         
     except Exception as e:
-        raise ValueError(f"Error loading audio file: {str(e)}")
+        raise RuntimeError(f"Error loading audio file: {str(e)}")
 
 def transcribe_audio(
     audio_path: str,
     model: Any,
     processor: Any
 ) -> Dict[str, Any]:
-    """Transcribe audio to text"""
+    """Transcribe audio file
+    
+    Args:
+        audio_path: Path to audio file
+        model: ASR model
+        processor: ASR processor
+        
+    Returns:
+        Dict containing transcription and metadata
+    """
+    # Load audio
+    waveform, sample_rate = load_audio(audio_path)
     
     # Get parameters from environment or use defaults
-    chunk_length_s = float(os.getenv("CHUNK_LENGTH", {{ model_config.chunk_length_s or 30 }}))
-    return_timestamps = os.getenv("RETURN_TIMESTAMPS", "{{ model_config.return_timestamps or 'False' }}").lower() == "true"
+    chunk_length_s = int(os.getenv("CHUNK_LENGTH", {{ model_config.chunk_length_s or 30 }}))
+    return_timestamps = os.getenv("RETURN_TIMESTAMPS", "").lower() == "true"
+    language = os.getenv("LANGUAGE", {{ model_config.language or "None" }})
     
-    # Load audio
-    audio_data = load_audio(audio_path)
-    waveform = audio_data["waveform"]
-    sample_rate = audio_data["sample_rate"]
-    
-    # Prepare inputs
+    # Prepare processor inputs
     inputs = processor(
         waveform,
         sampling_rate=sample_rate,
         return_tensors="pt",
         chunk_length_s=chunk_length_s
+    ).to(model.device)
+    
+    # Generate transcription
+    with torch.no_grad():
+        if language:
+            outputs = model.generate(
+                **inputs,
+                language=language,
+                task="transcribe",
+                return_timestamps=return_timestamps
+            )
+        else:
+            outputs = model.generate(
+                **inputs, 
+                task="transcribe",
+                return_timestamps=return_timestamps
+            )
+    
+    # Decode output tokens
+    transcription = processor.batch_decode(
+        outputs,
+        skip_special_tokens=True
     )
     
-    # Move to device
-    inputs = {k: v.to(model.device) for k, v in inputs.items()}
-    
-    with torch.no_grad():
-        # Generate transcription
-        outputs = model.generate(
-            **inputs,
-            max_new_tokens={{ model_config.max_new_tokens or 256 }},
-            num_beams={{ model_config.num_beams or 4 }},
-            return_timestamps=return_timestamps
-        )
-    
-    # Process results
-    result = {
-        "audio_path": audio_path,
-        "audio_info": {
-            "duration": audio_data["duration"],
-            "sample_rate": sample_rate
-        },
+    # Format results
+    results = {
+        "input_audio": audio_path,
+        "transcription": transcription[0],
         "parameters": {
             "chunk_length_s": chunk_length_s,
-            "return_timestamps": return_timestamps
+            "return_timestamps": return_timestamps,
+            "language": language,
+            "sample_rate": sample_rate
+        },
+        "audio_metadata": {
+            "duration": len(waveform) / sample_rate,
+            "original_sample_rate": sample_rate
         }
     }
     
-    # Decode output
-    if return_timestamps:
-        # Process output with timestamps
-        processed_outputs = processor.batch_decode(outputs, skip_special_tokens=True)
-        result["segments"] = []
-        
-        for output in processed_outputs:
-            if isinstance(output, dict):
-                # Some models return dicts with text and timestamp info
-                result["segments"].append({
-                    "text": output["text"],
-                    "start": output.get("start", None),
-                    "end": output.get("end", None)
-                })
-            else:
-                # Others might return raw text with timestamp tokens
-                result["text"] = output
-    else:
-        # Process output without timestamps
-        result["text"] = processor.batch_decode(
-            outputs,
-            skip_special_tokens=True
-        )[0]
+    # Add word-level timestamps if requested
+    if return_timestamps and hasattr(outputs, "word_timestamps"):
+        results["word_timestamps"] = [
+            {
+                "word": word,
+                "start": float(start),
+                "end": float(end)
+            }
+            for word, start, end in zip(
+                outputs.word_timestamps.words,
+                outputs.word_timestamps.starts,
+                outputs.word_timestamps.ends
+            )
+        ]
     
-    return result
+    return results
 
 def main():
     """Main inference function"""
