@@ -1,0 +1,89 @@
+"""
+UI Understanding inference script for {{ model_id }}
+"""
+
+import os
+import json
+import torch
+from PIL import Image
+from transformers import AutoProcessor, AutoModelForVisionLanguageUnderstanding
+from transformers.image_utils import load_image
+
+def load_model():
+    """Load UI understanding model and processor"""
+    processor = AutoProcessor.from_pretrained("./model")
+    model = AutoModelForVisionLanguageUnderstanding.from_pretrained(
+        "./model",
+        torch_dtype=torch.float16,
+        device_map="auto"
+    )
+    return model, processor
+
+def run_inference(
+    image_path: str,
+    instruction: str,
+    model,
+    processor
+) -> dict:
+    """Run UI understanding inference"""
+    # Load image
+    image = load_image(image_path)
+    
+    # Process inputs
+    inputs = processor(
+        images=image,
+        text=instruction,
+        return_tensors="pt"
+    ).to(model.device)
+    
+    # Generate understanding
+    with torch.no_grad():
+        outputs = model.generate(
+            **inputs,
+            max_length={{ config.get('max_length', 100) }},
+            num_beams={{ config.get('num_beams', 4) }},
+            temperature={{ config.get('temperature', 0.7) }},
+            top_p={{ config.get('top_p', 0.9) }},
+            early_stopping=True
+        )
+    
+    # Decode response
+    response = processor.decode(outputs[0], skip_special_tokens=True)
+    
+    return {
+        "input_image": image_path,
+        "instruction": instruction,
+        "response": response,
+        "metadata": {
+            "model_id": "{{ model_id }}",
+            "model_type": model.config.model_type,
+            "model_capabilities": getattr(model.config, "tasks", ["ui-understanding"])
+        }
+    }
+
+def main():
+    # Get inputs from environment variables
+    image_path = os.getenv("IMAGE_PATH", "/inputs/screenshot.jpg")
+    instruction = os.getenv("INSTRUCTION", "Describe the UI elements in this screenshot")
+    
+    try:
+        # Load model and processor
+        model, processor = load_model()
+        
+        # Run inference
+        results = run_inference(image_path, instruction, model, processor)
+        
+        # Save results
+        output_path = "/outputs/results.json"
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        with open(output_path, "w") as f:
+            json.dump(results, f, indent=2)
+            
+    except Exception as e:
+        error_path = "/outputs/error.json"
+        with open(error_path, "w") as f:
+            json.dump({"error": str(e)}, f, indent=2)
+        raise
+
+if __name__ == "__main__":
+    main()

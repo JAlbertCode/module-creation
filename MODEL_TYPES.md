@@ -234,6 +234,13 @@ lilypad run github.com/your-username/your-module:tag
 - 📝 Segmentation
 - 📝 Image Editing
 
+### Vision-Language Models
+- ✅ UI Understanding (UI-TARS)
+- ✅ Vision-Language Instruction (Qwen-VL)
+- 🟡 Visual Question Answering
+- 📝 Document Understanding
+- 📝 Image-Text Retrieval
+
 ### Video Models
 - ✅ Text-to-Video Generation (SDV)
 - 📝 Video Analysis

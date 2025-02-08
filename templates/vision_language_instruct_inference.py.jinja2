@@ -1,0 +1,103 @@
+"""
+Vision-Language Instruction inference script for {{ model_id }}
+"""
+
+import os
+import json
+import torch
+from PIL import Image
+from transformers import AutoProcessor, AutoModelForVisionLanguageModeling
+from transformers.image_utils import load_image
+
+def load_model():
+    """Load vision-language instruction model and processor"""
+    processor = AutoProcessor.from_pretrained("./model")
+    model = AutoModelForVisionLanguageModeling.from_pretrained(
+        "./model",
+        torch_dtype=torch.float16,
+        device_map="auto"
+    )
+    return model, processor
+
+def run_inference(
+    image_path: str,
+    instruction: str,
+    model,
+    processor
+) -> dict:
+    """Run vision-language instruction inference"""
+    # Load image
+    image = load_image(image_path)
+    
+    # Process inputs
+    chat_history = [{"role": "user", "content": instruction}]
+    
+    # Handle models that use chat templates
+    if hasattr(processor, "apply_chat_template"):
+        formatted_prompt = processor.apply_chat_template(
+            chat_history,
+            tokenize=False,
+            add_generation_prompt=True
+        )
+    else:
+        formatted_prompt = instruction
+    
+    inputs = processor(
+        images=image,
+        text=formatted_prompt,
+        return_tensors="pt"
+    ).to(model.device)
+    
+    # Generate response
+    with torch.no_grad():
+        outputs = model.generate(
+            **inputs,
+            max_length={{ config.get('max_length', 512) }},
+            num_beams={{ config.get('num_beams', 4) }},
+            temperature={{ config.get('temperature', 0.7) }},
+            top_p={{ config.get('top_p', 0.9) }},
+            repetition_penalty={{ config.get('repetition_penalty', 1.1) }},
+            early_stopping=True
+        )
+    
+    # Decode response
+    response = processor.decode(outputs[0], skip_special_tokens=True)
+    
+    return {
+        "input_image": image_path,
+        "instruction": instruction,
+        "response": response,
+        "metadata": {
+            "model_id": "{{ model_id }}",
+            "model_type": model.config.model_type,
+            "supports_chat": hasattr(processor, "apply_chat_template"),
+            "model_capabilities": getattr(model.config, "tasks", ["vision-language-modeling"])
+        }
+    }
+
+def main():
+    # Get inputs from environment variables
+    image_path = os.getenv("IMAGE_PATH", "/inputs/image.jpg")
+    instruction = os.getenv("INSTRUCTION", "Describe what you see in this image")
+    
+    try:
+        # Load model and processor
+        model, processor = load_model()
+        
+        # Run inference
+        results = run_inference(image_path, instruction, model, processor)
+        
+        # Save results
+        output_path = "/outputs/results.json"
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        with open(output_path, "w") as f:
+            json.dump(results, f, indent=2)
+            
+    except Exception as e:
+        error_path = "/outputs/error.json"
+        with open(error_path, "w") as f:
+            json.dump({"error": str(e)}, f, indent=2)
+        raise
+
+if __name__ == "__main__":
+    main()

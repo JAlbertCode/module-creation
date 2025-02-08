@@ -15,7 +15,9 @@ class MultimodalHandler(BaseHandler):
         "document-visual-qa": "AutoModelForDocumentVisualQuestionAnswering",
         "image-text-retrieval": "AutoModelForImageTextRetrieval",
         "visual-reasoning": "AutoModelForVisualReasoning",
-        "document-layout-analysis": "AutoModelForDocumentLayoutAnalysis"
+        "document-layout-analysis": "AutoModelForDocumentLayoutAnalysis",
+        "ui-understanding": "AutoModelForVisionLanguageUnderstanding",
+        "vision-language-instruct": "AutoModelForVisionLanguageModeling"
     }
     
     def __init__(self, model_id: str, task: str, config: Optional[Dict[str, Any]] = None):
@@ -50,8 +52,163 @@ class MultimodalHandler(BaseHandler):
             return self._generate_vqa_code()
         elif "image-text-retrieval" in self.task:
             return self._generate_retrieval_code()
+        elif "ui-understanding" in self.task:
+            return self._generate_ui_understanding_code()
+        elif "vision-language-instruct" in self.task:
+            return self._generate_vision_language_instruct_code()
         else:
             raise ValueError(f"Unsupported task: {self.task}")
+
+    def _generate_ui_understanding_code(self) -> str:
+        """Generate UI understanding code"""
+        return '''
+def load_model():
+    """Load UI understanding model and processor"""
+    processor = AutoProcessor.from_pretrained("./model")
+    model = AutoModelForVisionLanguageUnderstanding.from_pretrained(
+        "./model",
+        torch_dtype=torch.float16,
+        device_map="auto"
+    )
+    return model, processor
+
+def run_ui_understanding(
+    image_path: str,
+    instruction: str,
+    model,
+    processor
+) -> Dict[str, Any]:
+    """Run UI understanding task"""
+    # Load image
+    image = load_image(image_path)
+    
+    # Process inputs
+    inputs = processor(
+        images=image,
+        text=instruction,
+        return_tensors="pt"
+    ).to(model.device)
+    
+    # Generate understanding
+    with torch.no_grad():
+        outputs = model.generate(
+            **inputs,
+            max_length=100,
+            num_beams=4,
+            early_stopping=True
+        )
+    
+    # Decode response
+    response = processor.decode(outputs[0], skip_special_tokens=True)
+    
+    return {
+        "input_image": image_path,
+        "instruction": instruction,
+        "response": response,
+        "metadata": {
+            "model_type": model.config.model_type,
+            "model_capabilities": getattr(model.config, "tasks", ["ui-understanding"])
+        }
+    }
+
+def main():
+    """Main inference function"""
+    image_path = os.getenv("IMAGE_PATH", "/inputs/ui_screenshot.jpg")
+    instruction = os.getenv("MODEL_INPUT", "Describe the UI elements in this screenshot")
+    
+    model, processor = load_model()
+    results = run_ui_understanding(image_path, instruction, model, processor)
+    
+    output_file = os.path.join("/outputs", "results.json")
+    with open(output_file, "w") as f:
+        json.dump(results, f, indent=2)
+
+if __name__ == "__main__":
+    main()
+'''
+
+    def _generate_vision_language_instruct_code(self) -> str:
+        """Generate vision-language instruction code"""
+        return '''
+def load_model():
+    """Load vision-language instruction model and processor"""
+    processor = AutoProcessor.from_pretrained("./model")
+    model = AutoModelForVisionLanguageModeling.from_pretrained(
+        "./model",
+        torch_dtype=torch.float16,
+        device_map="auto"
+    )
+    return model, processor
+
+def run_vision_language_instruct(
+    image_path: str,
+    instruction: str,
+    model,
+    processor
+) -> Dict[str, Any]:
+    """Run vision-language instruction task"""
+    # Load image
+    image = load_image(image_path)
+    
+    # Process inputs
+    chat_history = [{"role": "user", "content": instruction}]
+    
+    # Handle models that use chat templates
+    if hasattr(processor, "apply_chat_template"):
+        formatted_prompt = processor.apply_chat_template(
+            chat_history,
+            tokenize=False,
+            add_generation_prompt=True
+        )
+    else:
+        formatted_prompt = instruction
+    
+    inputs = processor(
+        images=image,
+        text=formatted_prompt,
+        return_tensors="pt"
+    ).to(model.device)
+    
+    # Generate response
+    with torch.no_grad():
+        outputs = model.generate(
+            **inputs,
+            max_length=512,
+            num_beams=4,
+            temperature=0.7,
+            top_p=0.9,
+            early_stopping=True
+        )
+    
+    # Decode response
+    response = processor.decode(outputs[0], skip_special_tokens=True)
+    
+    return {
+        "input_image": image_path,
+        "instruction": instruction,
+        "response": response,
+        "metadata": {
+            "model_type": model.config.model_type,
+            "supports_chat": hasattr(processor, "apply_chat_template"),
+            "model_capabilities": getattr(model.config, "tasks", ["vision-language-modeling"])
+        }
+    }
+
+def main():
+    """Main inference function"""
+    image_path = os.getenv("IMAGE_PATH", "/inputs/image.jpg")
+    instruction = os.getenv("MODEL_INPUT", "Describe what you see in this image")
+    
+    model, processor = load_model()
+    results = run_vision_language_instruct(image_path, instruction, model, processor)
+    
+    output_file = os.path.join("/outputs", "results.json")
+    with open(output_file, "w") as f:
+        json.dump(results, f, indent=2)
+
+if __name__ == "__main__":
+    main()
+'''
             
     def _generate_vqa_code(self) -> str:
         """Generate VQA code"""

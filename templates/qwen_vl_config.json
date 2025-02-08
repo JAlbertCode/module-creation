@@ -1,0 +1,41 @@
+{
+  "name": "qwen-vl-7b",
+  "description": "Qwen2.5-VL-7B-Instruct vision-language model for image analysis and understanding",
+  "config": {
+    "model_type": "vision-language-instruct",
+    "model_id": "Qwen/Qwen2.5-VL-7B-Instruct",
+    "pipeline_config": {
+      "device_map": "auto",
+      "torch_dtype": "float16",
+      "max_length": 512,
+      "num_beams": 4,
+      "temperature": 0.7,
+      "top_p": 0.9,
+      "repetition_penalty": 1.1
+    },
+    "input_format": {
+      "image": {
+        "type": "image",
+        "required": true,
+        "description": "Input image for analysis"
+      },
+      "instruction": {
+        "type": "string",
+        "required": true,
+        "description": "Instruction or question about the image"
+      }
+    },
+    "preprocessing": {
+      "image_size": 448,
+      "pixel_values_scale": [0, 1]
+    },
+    "requirements": [
+      "torch>=2.0.0",
+      "transformers>=4.36.0",
+      "pillow>=10.0.0",
+      "accelerate>=0.25.0",
+      "tiktoken>=0.5.2"
+    ]
+  },
+  "model_type": "multimodal"
+}

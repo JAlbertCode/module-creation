@@ -1,0 +1,39 @@
+{
+  "name": "ui-tars-7b",
+  "description": "UI-TARS-7B-SFT model for understanding UI elements and layouts",
+  "config": {
+    "model_type": "ui-understanding",
+    "model_id": "bytedance-research/UI-TARS-7B-SFT",
+    "pipeline_config": {
+      "device_map": "auto",
+      "torch_dtype": "float16",
+      "max_length": 512,
+      "num_beams": 4,
+      "temperature": 0.7,
+      "top_p": 0.9
+    },
+    "input_format": {
+      "image": {
+        "type": "image",
+        "required": true,
+        "description": "Screenshot or UI image"
+      },
+      "instruction": {
+        "type": "string",
+        "required": true,
+        "description": "Instruction for understanding UI elements"
+      }
+    },
+    "preprocessing": {
+      "image_size": 1024,
+      "pixel_values_scale": [0, 1]
+    },
+    "requirements": [
+      "torch>=2.0.0",
+      "transformers>=4.36.0",
+      "pillow>=10.0.0",
+      "accelerate>=0.25.0"
+    ]
+  },
+  "model_type": "multimodal"
+}

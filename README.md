@@ -19,6 +19,7 @@ This tool helps you convert any Hugging Face model into a Lilypad module that ca
 - ✅ Handlers implementation:
   - Text models (classification, generation)
   - Image models (classification, generation)
+  - Vision-Language models (UI understanding, instruction models)
   - Audio models (speech recognition, text-to-speech, classification)
   - Video models (classification, text-to-video generation, captioning)
   - Specialized vision models (detection, segmentation, depth estimation, pose)
