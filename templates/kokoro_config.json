@@ -1,0 +1,51 @@
+{
+  "name": "kokoro-82m",
+  "description": "Kokoro-82M small language model for efficient text generation",
+  "config": {
+    "model_type": "text-generation",
+    "model_id": "hexgrad/Kokoro-82M",
+    "pipeline_config": {
+      "device_map": "auto",
+      "torch_dtype": "float16",
+      "generation_config": {
+        "max_new_tokens": 256,
+        "do_sample": true,
+        "temperature": 0.8,
+        "top_p": 0.9,
+        "top_k": 50,
+        "repetition_penalty": 1.1,
+        "pad_token_id": null,
+        "bos_token_id": 1,
+        "eos_token_id": 2
+      },
+      "use_flash_attention": true
+    },
+    "input_format": {
+      "prompt": {
+        "type": "string",
+        "required": true,
+        "description": "Text prompt for generation"
+      },
+      "system_prompt": {
+        "type": "string",
+        "required": false,
+        "description": "Optional system prompt for instruction or context",
+        "default": ""
+      }
+    },
+    "preprocessing": {
+      "max_input_length": 1024,
+      "truncation": true,
+      "add_special_tokens": true
+    },
+    "requirements": [
+      "torch>=2.0.0",
+      "transformers>=4.36.0",
+      "accelerate>=0.25.0",
+      "safetensors>=0.4.0",
+      "flash-attn>=2.3.0",
+      "bitsandbytes>=0.41.0"
+    ]
+  },
+  "model_type": "text"
+}

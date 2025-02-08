@@ -222,7 +222,7 @@ lilypad run github.com/your-username/your-module:tag
 - 📝 Planned
 
 ### Text Models
-- ✅ Language Generation (Basic models)
+- ✅ Language Generation (Basic models, Kokoro-82M)
 - ✅ Text Classification
 - 🟡 Sentiment Analysis
 - 📝 Other Text Tasks

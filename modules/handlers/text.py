@@ -9,6 +9,7 @@ class TextHandler(BaseHandler):
     TASK_TO_MODEL_CLASS = {
         "text-classification": "AutoModelForSequenceClassification",
         "text-generation": "AutoModelForCausalLM",
+        "kokoro-generation": "AutoModelForCausalLM",
         "translation": "AutoModelForSeq2SeqLM",
         "summarization": "AutoModelForSeq2SeqLM",
         "question-answering": "AutoModelForQuestionAnswering",

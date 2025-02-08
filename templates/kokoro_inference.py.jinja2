@@ -1,0 +1,169 @@
+"""
+Kokoro-82M inference script for efficient text generation
+"""
+
+import os
+import json
+import torch
+from transformers import AutoTokenizer, AutoModelForCausalLM
+from typing import Dict, Any, Optional
+
+def load_model():
+    """Load Kokoro model and tokenizer with optimizations"""
+    model_path = "./model"
+    
+    # Load tokenizer
+    tokenizer = AutoTokenizer.from_pretrained(model_path)
+    
+    # Handle special tokens
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token
+    
+    # Load model with optimizations
+    model = AutoModelForCausalLM.from_pretrained(
+        model_path,
+        device_map="auto",
+        torch_dtype=torch.float16,
+        use_flash_attention=True,
+        use_cache=True
+    )
+    
+    # Enable memory efficient attention if available
+    if hasattr(model, "enable_xformers_memory_efficient_attention"):
+        model.enable_xformers_memory_efficient_attention()
+    
+    return model, tokenizer
+
+def format_prompt(
+    user_prompt: str,
+    system_prompt: Optional[str] = None
+) -> str:
+    """Format prompt with optional system context"""
+    if not system_prompt:
+        return user_prompt
+        
+    return f"""### System:
+{system_prompt.strip()}
+
+### User:
+{user_prompt.strip()}
+
+### Assistant:"""
+
+def run_inference(
+    prompt: str,
+    model,
+    tokenizer,
+    system_prompt: Optional[str] = None
+) -> Dict[str, Any]:
+    """Run text generation inference
+    
+    Args:
+        prompt: User input text
+        model: Loaded Kokoro model
+        tokenizer: Associated tokenizer
+        system_prompt: Optional system context/instruction
+        
+    Returns:
+        Dict containing generation results and metadata
+    """
+    # Get generation parameters from environment
+    max_new_tokens = int(os.getenv("MAX_NEW_TOKENS", {{ config.pipeline_config.generation_config.max_new_tokens }}))
+    temperature = float(os.getenv("TEMPERATURE", {{ config.pipeline_config.generation_config.temperature }}))
+    top_p = float(os.getenv("TOP_P", {{ config.pipeline_config.generation_config.top_p }}))
+    top_k = int(os.getenv("TOP_K", {{ config.pipeline_config.generation_config.top_k }}))
+    repetition_penalty = float(os.getenv("REPETITION_PENALTY", {{ config.pipeline_config.generation_config.repetition_penalty }}))
+    
+    # Format full prompt
+    full_prompt = format_prompt(prompt, system_prompt)
+    
+    # Encode prompt
+    inputs = tokenizer(
+        full_prompt,
+        return_tensors="pt",
+        padding=True,
+        truncation=True,
+        max_length={{ config.preprocessing.max_input_length }},
+        add_special_tokens={{ config.preprocessing.add_special_tokens }}
+    ).to(model.device)
+    
+    # Generate with streaming
+    generated_text = ""
+    input_length = inputs["input_ids"].shape[1]
+    
+    with torch.no_grad():
+        output_ids = model.generate(
+            **inputs,
+            max_new_tokens=max_new_tokens,
+            do_sample=True,
+            temperature=temperature,
+            top_p=top_p,
+            top_k=top_k,
+            repetition_penalty=repetition_penalty,
+            pad_token_id=tokenizer.pad_token_id,
+            bos_token_id=tokenizer.bos_token_id,
+            eos_token_id=tokenizer.eos_token_id,
+            return_dict_in_generate=True,
+            output_scores=True
+        )
+    
+    # Get generated text
+    generated_tokens = output_ids.sequences[0, input_length:]
+    generated_text = tokenizer.decode(generated_tokens, skip_special_tokens=True)
+    
+    # Calculate token probabilities
+    token_probs = []
+    for token_scores in output_ids.scores:
+        probs = torch.nn.functional.softmax(token_scores[0], dim=-1)
+        token_probs.append(float(torch.max(probs)))
+    
+    return {
+        "prompt": prompt,
+        "system_prompt": system_prompt,
+        "generated_text": generated_text.strip(),
+        "metadata": {
+            "model_id": "{{ model_id }}",
+            "input_tokens": input_length,
+            "generated_tokens": len(generated_tokens),
+            "token_probabilities": token_probs,
+            "average_confidence": sum(token_probs) / len(token_probs) if token_probs else 0,
+            "generation_config": {
+                "temperature": temperature,
+                "top_p": top_p,
+                "top_k": top_k,
+                "repetition_penalty": repetition_penalty,
+                "max_new_tokens": max_new_tokens
+            }
+        }
+    }
+
+def main():
+    """Main inference function"""
+    try:
+        # Get inputs from environment
+        prompt = os.getenv("MODEL_INPUT")
+        if not prompt:
+            raise ValueError("MODEL_INPUT environment variable is required")
+            
+        system_prompt = os.getenv("SYSTEM_PROMPT", "")
+        
+        # Load model
+        model, tokenizer = load_model()
+        
+        # Run inference
+        results = run_inference(prompt, model, tokenizer, system_prompt)
+        
+        # Save results
+        output_file = os.path.join("/outputs", "results.json")
+        os.makedirs(os.path.dirname(output_file), exist_ok=True)
+        with open(output_file, "w") as f:
+            json.dump(results, f, indent=2)
+            
+    except Exception as e:
+        error_path = os.path.join("/outputs", "error.json")
+        with open(error_path, "w") as f:
+            json.dump({"error": str(e)}, f, indent=2)
+        raise
+
+if __name__ == "__main__":
+    main()
