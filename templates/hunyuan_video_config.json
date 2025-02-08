@@ -1,0 +1,53 @@
+{
+  "name": "hunyuan-video",
+  "description": "HunyuanVideo model for text-to-video generation by Tencent",
+  "config": {
+    "model_type": "text-to-video",
+    "model_id": "tencent/HunyuanVideo",
+    "pipeline_config": {
+      "device_map": "auto",
+      "torch_dtype": "float16",
+      "variant": "fp16",
+      "generator_settings": {
+        "num_inference_steps": 50,
+        "width": 320,
+        "height": 512,
+        "num_frames": 16,
+        "guidance_scale": 9.0,
+        "fps": 8
+      },
+      "scheduler_config": {
+        "beta_start": 0.00085,
+        "beta_end": 0.012,
+        "beta_schedule": "scaled_linear"
+      }
+    },
+    "input_format": {
+      "prompt": {
+        "type": "string",
+        "required": true,
+        "description": "Text description of the video to generate"
+      },
+      "negative_prompt": {
+        "type": "string",
+        "required": false,
+        "description": "Text describing what to avoid in the video",
+        "default": ""
+      }
+    },
+    "preprocessing": {
+      "prompt_max_length": 512
+    },
+    "requirements": [
+      "torch>=2.0.0",
+      "transformers>=4.36.0",
+      "diffusers>=0.25.0",
+      "accelerate>=0.25.0",
+      "imageio>=2.31.0",
+      "imageio-ffmpeg>=0.4.9",
+      "xformers>=0.0.23.post1",
+      "safetensors>=0.4.1"
+    ]
+  },
+  "model_type": "video"
+}

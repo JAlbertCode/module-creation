@@ -1,0 +1,133 @@
+"""
+HunyuanVideo inference script for text-to-video generation
+"""
+
+import os
+import json
+import torch
+import imageio
+from diffusers import HunyuanVideoGenerationPipeline
+from typing import Dict, Any, List
+
+def load_model():
+    """Load HunyuanVideo model"""
+    pipe = HunyuanVideoGenerationPipeline.from_pretrained(
+        "./model",
+        torch_dtype=torch.float16,
+        variant="fp16"
+    ).to("cuda")
+    
+    # Enable memory efficient attention if available
+    pipe.enable_xformers_memory_efficient_attention()
+    
+    return pipe
+
+def generate_video(
+    prompt: str,
+    model,
+    negative_prompt: str = ""
+) -> Dict[str, Any]:
+    """Generate video from text prompt
+    
+    Args:
+        prompt: Text description
+        model: HunyuanVideo pipeline
+        negative_prompt: Text describing what to avoid
+        
+    Returns:
+        Dict containing generated video and metadata
+    """
+    # Get generation parameters from environment
+    num_frames = int(os.getenv("NUM_FRAMES", {{ config.generator_settings.num_frames }}))
+    num_inference_steps = int(os.getenv("NUM_STEPS", {{ config.generator_settings.num_inference_steps }}))
+    height = int(os.getenv("HEIGHT", {{ config.generator_settings.height }}))
+    width = int(os.getenv("WIDTH", {{ config.generator_settings.width }}))
+    fps = int(os.getenv("FPS", {{ config.generator_settings.fps }}))
+    guidance_scale = float(os.getenv("GUIDANCE_SCALE", {{ config.generator_settings.guidance_scale }}))
+    
+    # Generate video frames
+    output = model(
+        prompt=prompt,
+        negative_prompt=negative_prompt,
+        num_frames=num_frames,
+        num_inference_steps=num_inference_steps,
+        height=height,
+        width=width,
+        guidance_scale=guidance_scale,
+        generator=torch.Generator(device="cuda").manual_seed(42)  # For reproducibility
+    )
+    
+    video_frames = output.frames[0]
+    
+    # Save video in different formats
+    save_paths = []
+    
+    # Save as MP4
+    mp4_path = os.path.join("/outputs", "generated_video.mp4")
+    imageio.mimsave(
+        mp4_path,
+        video_frames,
+        fps=fps,
+        quality=8,
+        macro_block_size=1
+    )
+    save_paths.append(mp4_path)
+    
+    # Save as GIF
+    gif_path = os.path.join("/outputs", "generated_video.gif")
+    imageio.mimsave(
+        gif_path,
+        video_frames,
+        fps=fps,
+        format="GIF"
+    )
+    save_paths.append(gif_path)
+    
+    return {
+        "prompt": prompt,
+        "negative_prompt": negative_prompt,
+        "video_paths": save_paths,
+        "parameters": {
+            "num_frames": num_frames,
+            "num_inference_steps": num_inference_steps,
+            "height": height,
+            "width": width,
+            "fps": fps,
+            "guidance_scale": guidance_scale
+        },
+        "metadata": {
+            "model_id": "{{ model_id }}",
+            "model_revision": model.config.revision,
+            "framework_version": {
+                "torch": torch.__version__,
+                "diffusers": model.__version__
+            }
+        }
+    }
+
+def main():
+    """Main inference function"""
+    try:
+        # Get input prompt and optional negative prompt
+        prompt = os.getenv("MODEL_INPUT", "A beautiful sunset over mountains")
+        negative_prompt = os.getenv("NEGATIVE_PROMPT", "")
+        
+        # Load model
+        model = load_model()
+        
+        # Generate video
+        results = generate_video(prompt, model, negative_prompt)
+        
+        # Save results
+        output_file = os.path.join("/outputs", "results.json")
+        with open(output_file, "w") as f:
+            json.dump(results, f, indent=2)
+            
+    except Exception as e:
+        error_path = os.path.join("/outputs", "error.json")
+        with open(error_path, "w") as f:
+            json.dump({"error": str(e)}, f, indent=2)
+        raise
+
+if __name__ == "__main__":
+    main()

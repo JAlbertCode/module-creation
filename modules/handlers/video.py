@@ -12,6 +12,7 @@ class VideoHandler(BaseHandler):
         "video-classification": "AutoModelForVideoClassification",
         "video-to-text": "AutoModelForVideoToText",
         "text-to-video": "AutoModelForTextToVideo",
+        "hunyuan-video": "HunyuanVideoGenerationPipeline",
         "video-feature-extraction": "AutoModelForVideoFeatureExtraction",
         "video-frame-classification": "AutoModelForVideoFrameClassification"
     }

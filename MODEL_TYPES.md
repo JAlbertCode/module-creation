@@ -242,7 +242,7 @@ lilypad run github.com/your-username/your-module:tag
 - 📝 Image-Text Retrieval
 
 ### Video Models
-- ✅ Text-to-Video Generation (SDV)
+- ✅ Text-to-Video Generation (SDV, HunyuanVideo)
 - 📝 Video Analysis
 - 📝 Video Understanding
 
