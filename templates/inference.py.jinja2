@@ -1,0 +1,200 @@
+"""
+Inference script for {{ model_id }}
+Task: {{ task_type }}
+"""
+
+import os
+import json
+import torch
+from typing import Dict, Any, Union, Optional
+{% if 'image' in input_types or 'image' in output_types %}
+from PIL import Image
+from io import BytesIO
+import base64
+{% endif %}
+{% if model_loader.startswith('Auto') %}
+from transformers import {{ model_loader }}, {{ processor_type or 'AutoProcessor' }}
+{% elif 'StableDiffusion' in model_loader %}
+from diffusers import {{ model_loader }}
+{% endif %}
+
+def load_model():
+    """Load model and processor with optimizations"""
+    {% if processor_type %}
+    processor = {{ processor_type }}.from_pretrained("./model")
+    {% endif %}
+    
+    model = {{ model_loader }}.from_pretrained(
+        "./model",
+        torch_dtype=torch.float16,
+        device_map="auto"
+    )
+    
+    # Enable optimizations
+    if hasattr(model, "enable_xformers_memory_efficient_attention"):
+        model.enable_xformers_memory_efficient_attention()
+    
+    {% if processor_type %}
+    return model, processor
+    {% else %}
+    return model
+    {% endif %}
+
+{% for input_type in input_types %}
+def process_{{ input_type }}_input({{ input_type }}_input: Union[str, bytes]) -> Dict[str, Any]:
+    """Process {{ input_type }} input"""
+    {% if input_type == 'text' %}
+    if not isinstance(text_input, str):
+        raise ValueError("Text input must be a string")
+    return {"text": text_input.strip()}
+    {% elif input_type == 'image' %}
+    if isinstance(image_input, str):
+        if not os.path.exists(image_input):
+            raise FileNotFoundError(f"Image not found: {image_input}")
+        image = Image.open(image_input)
+    else:
+        image = Image.open(BytesIO(image_input))
+    return {"image": image}
+    {% endif %}
+{% endfor %}
+
+def run_inference(
+    {% for input_type in input_types %}
+    {{ input_type }}_input: Union[str, bytes],
+    {% endfor %}
+    model,
+    {% if processor_type %}processor{% endif %}
+) -> Dict[str, Any]:
+    """Run model inference"""
+    # Process inputs
+    {% for input_type in input_types %}
+    {{ input_type }}_data = process_{{ input_type }}_input({{ input_type }}_input)
+    {% endfor %}
+    
+    # Prepare model inputs
+    {% if processor_type %}
+    inputs = processor(
+        {% for input_type in input_types %}
+        {{ input_type }}={{ input_type }}_data["{{ input_type }}"],
+        {% endfor %}
+        return_tensors="pt"
+    ).to(model.device)
+    {% else %}
+    inputs = {
+        {% for input_type in input_types %}
+        "{{ input_type }}": {{ input_type }}_data["{{ input_type }}"],
+        {% endfor %}
+    }
+    {% endif %}
+    
+    # Get generation parameters from environment
+    {% for param, value in generation_params.items() %}
+    {{ param }} = {{ value.__class__.__name__ }}(os.getenv("{{ param|upper }}", {{ value }}))
+    {% endfor %}
+    
+    # Run inference
+    with torch.no_grad():
+        {% if task_type == 'text-generation' %}
+        outputs = model.generate(
+            **inputs,
+            {% for param, value in generation_params.items() %}
+            {{ param }}={{ param }},
+            {% endfor %}
+            {% for token, value in special_tokens.items() %}
+            {{ token }}={{ value }},
+            {% endfor %}
+        )
+        {% else %}
+        outputs = model(**inputs)
+        {% endif %}
+    
+    # Process outputs
+    results = {
+        "model_id": "{{ model_id }}",
+        "task_type": "{{ task_type }}",
+        {% for input_type in input_types %}
+        "{{ input_type }}_input": str({{ input_type }}_input),
+        {% endfor %}
+    }
+    
+    {% for output_type in output_types %}
+    {% if output_type == 'text' %}
+    if hasattr(processor, "batch_decode"):
+        text_output = processor.batch_decode(outputs, skip_special_tokens=True)[0]
+    else:
+        text_output = str(outputs)
+    results["text_output"] = text_output.strip()
+    {% elif output_type == 'image' %}
+    # Save image output
+    if hasattr(outputs, "images"):
+        image = outputs.images[0]
+    else:
+        image = outputs
+        
+    image_paths = {}
+    
+    # Save PNG
+    png_path = os.path.join("/outputs", "output.png")
+    image.save(png_path, "PNG")
+    image_paths["png"] = png_path
+    
+    # Save WebP
+    webp_path = os.path.join("/outputs", "output.webp")
+    image.save(webp_path, "WEBP", quality=90)
+    image_paths["webp"] = webp_path
+    
+    # Generate base64
+    buffered = BytesIO()
+    image.save(buffered, format="PNG")
+    image_base64 = base64.b64encode(buffered.getvalue()).decode()
+    
+    results.update({
+        "image_paths": image_paths,
+        "image_base64": image_base64
+    })
+    {% endif %}
+    {% endfor %}
+    
+    return results
+
+def main():
+    """Main inference function"""
+    try:
+        # Get inputs from environment
+        {% for input_type in input_types %}
+        {{ input_type }}_input = os.getenv("{{ input_type|upper }}_INPUT")
+        if not {{ input_type }}_input:
+            raise ValueError("{{ input_type|upper }}_INPUT environment variable is required")
+        {% endfor %}
+        
+        # Load model
+        {% if processor_type %}
+        model, processor = load_model()
+        {% else %}
+        model = load_model()
+        processor = None
+        {% endif %}
+        
+        # Run inference
+        results = run_inference(
+            {% for input_type in input_types %}
+            {{ input_type }}_input,
+            {% endfor %}
+            model,
+            {% if processor_type %}processor{% endif %}
+        )
+        
+        # Save results
+        output_file = os.path.join("/outputs", "results.json")
+        os.makedirs(os.path.dirname(output_file), exist_ok=True)
+        with open(output_file, "w") as f:
+            json.dump(results, f, indent=2)
+            
+    except Exception as e:
+        error_path = os.path.join("/outputs", "error.json")
+        with open(error_path, "w") as f:
+            json.dump({"error": str(e)}, f, indent=2)
+        raise
+
+if __name__ == "__main__":
+    main()

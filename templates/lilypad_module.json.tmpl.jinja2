@@ -1,0 +1,51 @@
+{
+  "machine": {
+    "gpu": {{ machine.gpu }},
+    "cpu": {{ machine.cpu }},
+    "ram": {{ machine.ram }}
+  },
+  "job": {
+    "APIVersion": "V1beta1",
+    "Spec": {
+      "Deal": {
+        "Concurrency": {{ concurrency }}
+      },
+      "Docker": {
+        "Entrypoint": ["python3", "/app/run_inference.py"],
+        "WorkingDirectory": "/app",
+        "EnvironmentVariables": [
+          {% for input_type in input_types %}
+          {% if input_type == "text" %}
+          {{ '{{ if .TEXT_INPUT }}' }}"TEXT_INPUT={{ '{{ js .TEXT_INPUT }}' }}"{{ '{{ else }}' }}"TEXT_INPUT=default text"{{ '{{ end }}' }},
+          {% elif input_type == "image" %}
+          {{ '{{ if .IMAGE_INPUT }}' }}"IMAGE_INPUT={{ '{{ js .IMAGE_INPUT }}' }}"{{ '{{ else }}' }}"IMAGE_INPUT=/inputs/image.jpg"{{ '{{ end }}' }},
+          {% endif %}
+          {% endfor %}
+          {% for param, value in generation_params.items() %}
+          {{ '{{ if .' + param|upper + ' }}' }}"{{ param|upper }}={{ '{{ js .' + param|upper + ' }}' }}"{{ '{{ else }}' }}"{{ param|upper }}={{ value }}"{{ '{{ end }}' }},
+          {% endfor %}
+          "HF_HOME=/model",
+          "TRANSFORMERS_OFFLINE=1"
+        ],
+        "Image": "{{ model_id|replace('/', '-')|lower }}:latest"
+      },
+      "Engine": "Docker",
+      "Network": {
+        "Type": "None"
+      },
+      "Outputs": [
+        {
+          "Name": "outputs",
+          "Path": "/outputs"
+        }
+      ],
+      "PublisherSpec": {
+        "Type": "ipfs"
+      },
+      "Resources": {
+        "GPU": "{{ machine.gpu }}"
+      },
+      "Timeout": {{ timeout }}
+    }
+  }
+}
