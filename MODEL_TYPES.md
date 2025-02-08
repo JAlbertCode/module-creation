@@ -229,7 +229,7 @@ lilypad run github.com/your-username/your-module:tag
 
 ### Image Models
 - ✅ Image Classification
-- ✅ Text-to-Image Generation (SDXL)
+- ✅ Text-to-Image Generation (SDXL, OpenFree/pepe)
 - 🟡 Object Detection
 - 📝 Segmentation
 - 📝 Image Editing

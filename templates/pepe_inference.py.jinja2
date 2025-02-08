@@ -1,0 +1,200 @@
+"""
+OpenFree/pepe inference script for meme-style image generation
+"""
+
+import os
+import json
+import torch
+import base64
+from io import BytesIO
+from typing import Dict, Any, Optional
+from PIL import Image
+from diffusers import (
+    StableDiffusionPipeline,
+    DPMSolverMultistepScheduler,
+    DDIMScheduler,
+    EulerAncestralDiscreteScheduler
+)
+from compel import Compel
+
+def load_model():
+    """Load pepe model with optimizations"""
+    # Load base model
+    pipe = StableDiffusionPipeline.from_pretrained(
+        "./model",
+        torch_dtype=torch.float16,
+        safety_checker=None,
+        requires_safety_checker=False
+    )
+    
+    # Set up optimizations
+    pipe.enable_xformers_memory_efficient_attention()
+    pipe.enable_vae_tiling()
+    
+    # Initialize different schedulers for different styles
+    pipe.schedulers = {
+        "default": DPMSolverMultistepScheduler.from_config(pipe.scheduler.config),
+        "meme": DDIMScheduler.from_config(pipe.scheduler.config),
+        "artistic": EulerAncestralDiscreteScheduler.from_config(pipe.scheduler.config)
+    }
+    pipe.scheduler = pipe.schedulers["default"]
+    
+    # Load prompt weighting system
+    pipe.compel_proc = Compel(tokenizer=pipe.tokenizer, text_encoder=pipe.text_encoder)
+    
+    # Move to GPU
+    pipe.to("cuda")
+    
+    return pipe
+
+def enhance_prompt(prompt: str, style: str) -> str:
+    """Enhance prompt based on style"""
+    style_prefixes = {
+        "meme": "a high quality pepe meme, internet meme style, funny, ",
+        "pixel": "pixel art style, 16-bit graphics, retro gaming aesthetics, ",
+        "sketch": "hand-drawn sketch style, pencil drawing, rough lines, ",
+        "basic": ""
+    }
+    
+    style_suffixes = {
+        "meme": ", 4chan style, viral meme quality",
+        "pixel": ", pixelated, retro colors",
+        "sketch": ", sketchy, hand-drawn quality",
+        "basic": ""
+    }
+    
+    style = style.lower()
+    if style not in style_prefixes:
+        style = "basic"
+        
+    return f"{style_prefixes[style]}{prompt}{style_suffixes[style]}"
+
+def process_prompt(
+    prompt: str,
+    compel_proc: Compel,
+    style: str = "basic"
+) -> torch.Tensor:
+    """Process and weight prompt"""
+    # Enhance prompt based on style
+    enhanced_prompt = enhance_prompt(prompt, style)
+    
+    # Process with compel for better prompt understanding
+    return compel_proc(enhanced_prompt)
+
+def generate_image(
+    prompt: str,
+    model,
+    negative_prompt: Optional[str] = None,
+    style: str = "basic"
+) -> Dict[str, Any]:
+    """Generate image using pepe model
+    
+    Args:
+        prompt: Text description
+        model: Loaded pepe pipeline
+        negative_prompt: Text describing what to avoid
+        style: Generation style
+        
+    Returns:
+        Dict containing generated images and metadata
+    """
+    # Get generation parameters
+    num_steps = int(os.getenv("NUM_STEPS", {{ config.pipeline_config.generation_config.num_inference_steps }}))
+    guidance_scale = float(os.getenv("GUIDANCE_SCALE", {{ config.pipeline_config.generation_config.guidance_scale }}))
+    height = int(os.getenv("HEIGHT", {{ config.pipeline_config.generation_config.height }}))
+    width = int(os.getenv("WIDTH", {{ config.pipeline_config.generation_config.width }}))
+    
+    # Set scheduler based on style
+    if style in model.schedulers:
+        model.scheduler = model.schedulers[style]
+    
+    # Process prompts
+    processed_prompt = process_prompt(prompt, model.compel_proc, style)
+    
+    if negative_prompt:
+        processed_negative = process_prompt(negative_prompt, model.compel_proc)
+    else:
+        processed_negative = model.compel_proc("blurry, low quality, distorted, malformed")
+    
+    # Generate image
+    output = model(
+        prompt_embeds=processed_prompt,
+        negative_prompt_embeds=processed_negative,
+        num_inference_steps=num_steps,
+        guidance_scale=guidance_scale,
+        height=height,
+        width=width
+    )
+    
+    image = output.images[0]
+    
+    # Save in multiple formats
+    save_paths = {}
+    
+    # Save PNG
+    png_path = os.path.join("/outputs", "generated_image.png")
+    image.save(png_path, "PNG")
+    save_paths["png"] = png_path
+    
+    # Save WEBP for web use
+    webp_path = os.path.join("/outputs", "generated_image.webp")
+    image.save(webp_path, "WEBP", quality=90)
+    save_paths["webp"] = webp_path
+    
+    # Generate base64 for immediate use
+    buffered = BytesIO()
+    image.save(buffered, format="PNG")
+    img_str = base64.b64encode(buffered.getvalue()).decode()
+    
+    return {
+        "prompt": prompt,
+        "enhanced_prompt": enhance_prompt(prompt, style),
+        "negative_prompt": negative_prompt,
+        "style": style,
+        "image_paths": save_paths,
+        "image_base64": img_str,
+        "parameters": {
+            "num_inference_steps": num_steps,
+            "guidance_scale": guidance_scale,
+            "height": height,
+            "width": width,
+            "scheduler": model.scheduler.__class__.__name__
+        },
+        "metadata": {
+            "model_id": "{{ model_id }}",
+            "pipeline_version": model.__version__,
+            "torch_version": torch.__version__
+        }
+    }
+
+def main():
+    """Main inference function"""
+    try:
+        # Get inputs from environment
+        prompt = os.getenv("MODEL_INPUT")
+        if not prompt:
+            raise ValueError("MODEL_INPUT environment variable is required")
+            
+        negative_prompt = os.getenv("NEGATIVE_PROMPT", "")
+        style = os.getenv("STYLE", "basic")
+        
+        # Load model
+        model = load_model()
+        
+        # Generate image
+        results = generate_image(prompt, model, negative_prompt, style)
+        
+        # Save results
+        output_file = os.path.join("/outputs", "results.json")
+        os.makedirs(os.path.dirname(output_file), exist_ok=True)
+        with open(output_file, "w") as f:
+            json.dump(results, f, indent=2)
+            
+    except Exception as e:
+        error_path = os.path.join("/outputs", "error.json")
+        with open(error_path, "w") as f:
+            json.dump({"error": str(e)}, f, indent=2)
+        raise
+
+if __name__ == "__main__":
+    main()
