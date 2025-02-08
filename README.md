@@ -1,3 +1,5 @@
+For AI assistants working on this project, please refer to BOT_INSTRUCTIONS.md for detailed guidance on reviewing status and making changes.
+
 # Hugging Face to Lilypad Module Converter
 
 This tool helps you convert any Hugging Face model into a Lilypad module that can be run on the Lilypad network. It automatically handles:
@@ -16,15 +18,19 @@ This tool helps you convert any Hugging Face model into a Lilypad module that ca
 - ✅ Template system with Jinja2
 - ✅ Download and caching manager
 - ✅ Project structure and organization
-- ✅ Handlers implementation:
-  - Text models (classification, generation)
-  - Image models (classification, generation)
-  - Vision-Language models (UI understanding, instruction models)
-  - Audio models (speech recognition, text-to-speech, classification)
-  - Video models (classification, text-to-video generation, captioning)
-  - Specialized vision models (detection, segmentation, depth estimation, pose)
-  - Multimodal models (VQA, document understanding)
-  - Point cloud models (classification, segmentation)
+- ✅ Automatic model analysis:
+  - Task and architecture detection
+  - Dependency resolution
+  - Hardware requirements analysis
+  - Generation parameter detection
+- ✅ Dynamic template generation:
+  - Model-specific configurations
+  - Optimized inference scripts
+  - Adaptive input/output handling
+- ✅ Universal module conversion:
+  - Hugging Face to Lilypad conversion
+  - Automatic file generation
+  - Model download script creation
 - ✅ Templates for model tasks:
   - Text generation and classification
   - Image generation and classification

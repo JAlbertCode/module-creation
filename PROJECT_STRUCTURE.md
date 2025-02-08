@@ -5,183 +5,149 @@ This document outlines the organization and purpose of each component in the pro
 ## Directory Structure
 
 ```
-├── app.py                  # Web application entry point
+├── app.py                      # Web application entry point
 ├── modules/
-│   ├── handlers/          # Model type specific handlers
+│   ├── analyzer.py            # Model analysis system
+│   ├── converter.py           # Main conversion interface
+│   ├── template_generator.py  # Dynamic template generation
+│   ├── types/                # Type definitions
 │   │   ├── __init__.py
-│   │   ├── base.py       # Base handler class
-│   │   ├── text.py       # Text model handler
-│   │   ├── image.py      # Image model handler
-│   │   ├── audio.py      # Audio model handler
-│   │   └── video.py      # Video model handler
-│   ├── types/            # Type definitions
-│   │   ├── __init__.py
-│   │   └── model_types.py  # Model type detection
-│   └── utils/            # Utility functions
+│   │   └── model_types.py    # Model type definitions
+│   └── utils/                # Utility functions
 │       ├── __init__.py
-│       ├── config.py     # Configuration management
-│       ├── download.py   # Model downloading
-│       ├── templates.py  # Template management
-│       └── validation.py # Input validation
-├── templates/            # Jinja2 templates
-│   ├── Dockerfile.jinja2
-│   ├── image_classification_inference.py.jinja2
-│   ├── image_generation_inference.py.jinja2
-│   ├── text_generation_inference.py.jinja2
-│   ├── text_to_speech_inference.py.jinja2
-│   ├── speech_recognition_inference.py.jinja2
-│   ├── audio_classification_inference.py.jinja2
-│   ├── video_classification_inference.py.jinja2
-│   └── text_to_video_inference.py.jinja2
-├── tests/               # Test files
+│       ├── config.py         # Configuration management
+│       ├── download.py       # Model downloading
+│       └── validation.py     # Input validation
+├── templates/                # Base templates
+│   ├── Dockerfile.jinja2     # Base Dockerfile template
+│   ├── inference.py.jinja2   # Base inference script template
+│   ├── module_config.json.tmpl # Base module config template
+│   └── requirements.txt.jinja2 # Base requirements template
+├── tests/                    # Test files
 │   ├── __init__.py
-│   ├── conftest.py
-│   └── test_handlers/
-└── requirements.txt     # Python dependencies
+│   ├── test_analyzer.py      # Model analyzer tests
+│   ├── test_converter.py     # Converter tests
+│   └── test_templates.py     # Template tests
+└── requirements.txt          # Python dependencies
 ```
 
-## Components
+## Core Components
 
-### Handlers (modules/handlers/)
+### Model Analysis (modules/analyzer.py)
 
-Each handler class specializes in processing a specific type of model:
+Comprehensive model analysis system:
+- Task and architecture detection
+- Framework identification
+- Hardware requirements analysis
+- Dependency resolution
+- Generation parameter optimization
+- Model-specific configuration detection
 
-- **BaseHandler**: Core functionality for all handlers
-  - Model initialization
-  - Environment setup
-  - Resource management
-  - Output formatting
+### Universal Converter (modules/converter.py)
 
-- **TextHandler**: Text processing models
-  - Classification
-  - Generation
-  - Translation
-  - Question answering
+Main interface for model conversion:
+- Hugging Face to Lilypad conversion
+- Automatic file generation
+- Model download script creation
+- Validation and testing
+- Error handling
 
-- **ImageHandler**: Image processing models
-  - Classification
-  - Generation
-  - Object detection
+### Template Generator (modules/template_generator.py)
 
-- **AudioHandler**: Audio processing models
-  - Speech recognition
-  - Text-to-speech
-  - Audio classification
-  - Audio feature extraction
-
-- **VideoHandler**: Video processing models
-  - Classification
-  - Text-to-video generation
-  - Video captioning
-  - Frame prediction
-
-### Types (modules/types/)
-
-Type system for model categorization and configuration:
-
-- **model_types.py**: 
-  - Model type detection
-  - Framework detection
-  - Hardware requirements
-  - Task categorization
-
-### Utils (modules/utils/)
-
-Utility functions and helpers:
-
-- **config.py**: Configuration management
-  - Environment variables
-  - Model settings
-  - Hardware requirements
-
-- **download.py**: Model downloading and caching
-  - Hugging Face model downloading
-  - Cache management
-  - Progress tracking
-
-- **templates.py**: Template management
-  - Template loading
-  - Template rendering
-  - Template validation
-
-- **validation.py**: Input validation
-  - Model compatibility
-  - Input format checking
-  - System requirements
+Dynamic template generation system:
+- Model-specific adaptations
+- Input/output handling
+- Error handling generation
+- Resource optimization
+- Performance monitoring
 
 ### Templates (templates/)
 
-Jinja2 templates for generating module files:
-
-- Dockerfile generation
-- Inference script generation
-- Documentation generation
-- Test script generation
-
-### Tests (tests/)
-
-Test files following the same structure as source files:
-
-- Unit tests
-- Integration tests
-- Template tests
-- Validation tests
+Base templates that adapt to model requirements:
+- Base Dockerfile with dynamic dependencies
+- Universal inference script template
+- Adaptive module configuration
+- Dynamic requirements generation
 
 ## Dependencies
 
 ### Core Requirements
-- torch
-- transformers
-- huggingface-hub
-- jinja2
-- pillow
-- numpy
-- decord
-- librosa
-- soundfile
-- imageio
+- torch>=2.0.0
+- transformers>=4.36.0
+- diffusers>=0.25.0
+- accelerate>=0.25.0
+- safetensors>=0.4.0
+- jinja2>=3.0.0
+- pyyaml>=6.0.0
+- huggingface-hub>=0.20.0
 
 ### Development Requirements
-- pytest
-- black
-- isort
-- mypy
-- pylint
+- pytest>=7.0.0
+- black>=23.0.0
+- isort>=5.0.0
+- mypy>=1.0.0
+- pylint>=3.0.0
 
-## Upcoming Additions
+## Features
 
-1. Additional Handlers:
-   - MultimodalHandler (VQA models)
-   - GraphHandler (graph neural networks)
-   - PointCloudHandler (3D point clouds)
-   - CustomHandler (custom architectures)
+### Implemented
+- Universal model conversion
+- Automatic analysis system
+- Dynamic template generation
+- Hardware requirement detection
+- Dependency resolution
+- Error handling
+- Performance optimization
 
-2. CLI Interface:
-   - Command-line tool
-   - Batch processing
-   - Configuration management
+### In Progress
+- Testing framework
+- Model optimization tools
+- Performance monitoring
+- Resource usage optimization
 
-3. Testing Framework:
-   - Model compatibility tests
-   - Generated code tests
-   - Integration tests
-   - Performance benchmarks
+### Planned
+- CLI interface
+- Batch processing
+- Web interface
+- Documentation system
+- CI/CD pipeline
 
-4. Documentation System:
-   - API documentation
-   - User guides
-   - Model compatibility guides
-   - Troubleshooting guides
+## Development
 
-5. Advanced Features:
-   - Model fine-tuning support
-   - Custom preprocessing
-   - Resource optimization
-   - Model quantization
-   - Batch processing
+### Setting Up Development Environment
 
-6. Infrastructure:
-   - CI/CD pipeline
-   - Automated testing
-   - Docker builds
-   - Performance monitoring
+1. Create virtual environment:
+```bash
+python -m venv venv
+source venv/bin/activate  # On Windows: .\\venv\\Scripts\\activate
+```
+
+2. Install dependencies:
+```bash
+pip install -r requirements.txt
+pip install -r requirements-dev.txt  # For development
+```
+
+### Running Tests
+
+```bash
+pytest tests/  # Run all tests
+pytest tests/test_analyzer.py  # Test specific component
+```
+
+### Building Documentation
+
+```bash
+mkdocs serve  # Start documentation server
+mkdocs build  # Build documentation site
+```
+
+### Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make changes
+4. Run tests
+5. Submit pull request
+
+See CONTRIBUTING.md for detailed guidelines.
