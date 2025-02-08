@@ -1,200 +1,72 @@
 # Supported Model Types
 
-This document lists all model types supported by the Hugging Face to Lilypad converter.
+## Implementation Status
 
-## Text Models
+### Core Features
+- ✅ Automatic model analysis
+- ✅ Task & architecture detection
+- ✅ Dynamic template generation
+- ✅ Universal module conversion
+- ✅ Testing framework
+  - Model analysis
+  - Template generation
+  - Conversion process
+  - Validation & errors
+  - Performance
 
-### Language Generation
-- Causal Language Models (GPT, LLaMA, etc.)
-- Text-to-Text Generation (T5, BART)
-- Code Generation (CodeGen, StarCoder)
-- Story Generation
-- Dialog Systems
+### Supported Task Types
+- ✅ All text generation models
+- ✅ All classification models
+- ✅ All text-to-image models
+- ✅ All diffusion models
+- ✅ All vision-language models
 
-### Classification & Analysis
+### In Progress
+- 🟡 Model optimization tools
+- 🟡 Resource usage tracking
+- 🟡 Docker build testing
+
+### Planned
+- 📝 Advanced error handling
+- 📝 Performance monitoring
+- 📝 Batch processing
+- 📝 CLI interface
+
+## Model Compatibility
+
+### Text Models
+- Language Models (GPT, LLaMA, etc.)
 - Text Classification
-- Sentiment Analysis
-- Topic Classification
-- Language Detection
-- Hate Speech Detection
-- Toxicity Detection
+- Named Entity Recognition
+- Question Answering
+- Translation
+- Summarization
 
-### Information Extraction
-- Named Entity Recognition (NER)
-- Part-of-Speech Tagging
-- Dependency Parsing
-- Event Extraction
-- Keyword Extraction
-
-### Question Answering
-- Open Domain QA
-- Reading Comprehension
-- Closed Domain QA
-- Multiple Choice QA
-
-### Other Text Tasks
-- Text Summarization
-- Machine Translation
-- Sentence Similarity
-- Paraphrasing
-- Grammar Correction
-- Text Style Transfer
-
-## Image Models
-
-### Classification & Detection
+### Image Models
+- Text-to-Image Generation
 - Image Classification
 - Object Detection
-  - YOLO Models
-  - DETR Models
-  - Faster R-CNN
-- Face Detection
-- Landmark Detection
-- Person Detection
-
-### Segmentation
-- Semantic Segmentation
-- Instance Segmentation
-- Panoptic Segmentation
-- Medical Image Segmentation
-
-### Generation & Editing
-- Text-to-Image Generation
-  - Stable Diffusion
-  - DALL-E Style Models
-- Image-to-Image Translation
-- Style Transfer
-- Super Resolution
-- Image Inpainting
-- Image Outpainting
-- Image Colorization
-
-### Analysis & Understanding
+- Image Segmentation
 - Depth Estimation
 - Pose Estimation
-- Face Recognition
-- Facial Expression Analysis
-- Scene Understanding
-- Image Captioning
 
-## Audio Models
-
-### Speech Processing
-- Speech Recognition (ASR)
-- Text-to-Speech (TTS)
-- Speaker Diarization
-- Voice Conversion
-- Speech Enhancement
-- Accent Transfer
-
-### Audio Analysis
-- Audio Classification
-- Sound Event Detection
-- Music Classification
-- Emotion Recognition from Speech
-- Language Identification
-- Speaker Verification
-
-### Generation
-- Music Generation
-- Sound Generation
-- Voice Cloning
-- Audio Super Resolution
-- Audio Source Separation
-
-## Video Models
-
-### Analysis
-- Video Classification
-- Action Recognition
-- Activity Recognition
-- Scene Understanding
-- Motion Analysis
-- Gesture Recognition
-
-### Generation & Manipulation
+### Video Models
 - Text-to-Video Generation
-- Video Frame Interpolation
-- Video Super Resolution
-- Video Colorization
-- Style Transfer
-- Video Inpainting
-
-### Understanding
+- Video Classification
 - Video Captioning
-- Video Question Answering
-- Video Summarization
-- Video Object Tracking
-- Video Object Segmentation
-- Temporal Action Localization
+- Motion Analysis
 
-## Multimodal Models
+### Audio Models
+- Speech Recognition
+- Text-to-Speech
+- Audio Classification
+- Speaker Diarization
 
-### Vision-Language
-- Vision-Language Models (BLIP, LLaVA)
+### Multimodal Models
+- Vision-Language Models
 - Visual Question Answering
-- Image-Text Matching
-- Visual Reasoning
-- Visual Dialog
-- Visual Story Generation
-
-### Document Understanding
-- Document Layout Analysis (LayoutLM)
-- Document Question Answering
-- Document Information Extraction
-- Table Understanding
-- Form Understanding
-- Receipt/Invoice Processing
-
-### Audio-Visual
-- Audio-Visual Speech Recognition
-- Audio-Visual Event Localization
-- Audio-Visual Navigation
-- Cross-Modal Retrieval
-- Sound Source Localization
-- Lip Reading
-
-## Specialized Models
-
-### Scientific Computing
-- Molecular Property Prediction
-- Protein Structure Prediction
-- Chemical Reaction Prediction
-- Drug Discovery
-- Material Science
-- Climate Modeling
-
-### Graph Models
-- Graph Classification
-- Node Classification
-- Link Prediction
-- Graph Generation
-- Knowledge Graph Completion
-- Graph Embedding
-
-### 3D Processing
-- Point Cloud Classification
-- Point Cloud Segmentation
-- 3D Object Detection
-- 3D Shape Generation
-- Neural Radiance Fields (NeRF)
-- Mesh Generation
-
-### Time Series
-- Time Series Forecasting
-- Anomaly Detection
-- Event Prediction
-- Trend Analysis
-- Sequence Classification
-- Time Series Generation
-
-### Tabular Data
-- Tabular Classification
-- Tabular Regression
-- Missing Value Imputation
-- Outlier Detection
-- Feature Selection
-- Data Generation
+- Document Understanding
+- Image-Text Retrieval
 
 ## Local Development and Testing
 
@@ -202,68 +74,18 @@ Every model type supports both local testing and Lilypad deployment:
 
 ### Local Testing
 ```bash
-# Build Docker image
-docker build -t my-model .
+# Run tests
+pytest tests/
 
-# Run locally with mounted volumes
-docker run -v /path/to/inputs:/inputs -v /path/to/outputs:/outputs my-model
+# Test specific component
+pytest tests/test_analyzer.py
+pytest tests/test_templates.py
+pytest tests/test_converter.py
 ```
 
 ### Lilypad Deployment
 ```bash
-# Deploy to Lilypad network
-lilypad run github.com/your-username/your-module:tag
+# Convert and deploy model
+python cli.py convert <model_id> --output ./modules
+lilypad run <module_path>
 ```
-
-## Implementation Status
-
-Core Features:
-- ✅ Automatic model analysis
-- ✅ Task & architecture detection
-- ✅ Dynamic template generation
-- ✅ Universal module conversion
-
-Supported Task Types:
-- ✅ All text generation models
-- ✅ All classification models
-- ✅ All text-to-image models
-- ✅ All diffusion models
-- ✅ All vision-language models
-- 🟡 Testing and validation framework
-- 🟡 Model optimization tools
-- 📝 Advanced error handling
-- 📝 Performance monitoring
-
-Upcoming Improvements:
-- CLI interface for conversions
-- Batch processing support
-- Model performance profiling
-- Resource usage optimization
-- Testing framework
-
-### Vision-Language Models
-- ✅ UI Understanding (UI-TARS)
-- ✅ Vision-Language Instruction (Qwen-VL)
-- 🟡 Visual Question Answering
-- 📝 Document Understanding
-- 📝 Image-Text Retrieval
-
-### Video Models
-- ✅ Text-to-Video Generation (SDV, HunyuanVideo)
-- 📝 Video Analysis
-- 📝 Video Understanding
-
-### Audio Models
-- 📝 All Audio Processing Tasks
-
-### Multimodal Models
-- 🟡 Vision-Language Models
-- 📝 Document Understanding
-- 📝 Audio-Visual Tasks
-
-### Specialized Models
-- 📝 Scientific Computing
-- 🟡 Graph Models
-- 📝 3D Processing
-- 🟡 Time Series
-- 📝 Tabular Data
