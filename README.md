@@ -1,186 +1,110 @@
-For AI assistants working on this project, please refer to BOT_INSTRUCTIONS.md for detailed guidance on reviewing status and making changes.
-
 # Hugging Face to Lilypad Module Converter
 
-This tool automatically converts any Hugging Face model into a Lilypad module using a universal analysis system that:
+Universal converter that transforms any Hugging Face model into a Lilypad module.
 
-1. Analyzes Model Properties:
-   - Input types (text, image, audio, video)
-   - Output types (text, image, audio, video, structured data)
-   - Processing requirements (generation, classification, transformation)
-   - Hardware requirements (CPU/GPU, memory)
-   - Dependencies and configurations
+## Documentation Structure
 
-2. Generates Required Files:
-   - Dockerfile with appropriate dependencies
-   - Inference code adapted to model type
-   - Lilypad module configuration
-   - Requirements and documentation
+This project maintains two key documents:
 
-No custom implementation needed - the system automatically adapts to any model type from Hugging Face.
+1. README.md (this file)
+   - Project overview
+   - Current capabilities
+   - Implementation status
+   - Basic usage
+   - Project structure
 
-## Current Status
+2. SETUP.md
+   - Detailed installation steps
+   - Environment configuration
+   - Troubleshooting guides
 
-### Testing Features
-- ✅ Test fixtures and utilities
-- ✅ Model analyzer tests
-- ✅ Converter tests
-- ✅ Template generation tests
-- ✅ Validation and error handling
-- ✅ Performance testing
+Both files should be kept in sync when making changes. When adding new model support or features:
+1. Update Implementation Status in README.md
+2. Update relevant setup instructions in SETUP.md if needed
 
-### Completed Features
-- ✅ Model type detection system
-- ✅ Basic validation framework
-- ✅ Template system with Jinja2
-- ✅ Download and caching manager
-- ✅ Project structure and organization
-- ✅ Automatic model analysis:
-  - Task and architecture detection
-  - Dependency resolution
-  - Hardware requirements analysis
-  - Generation parameter detection
-- ✅ Dynamic template generation:
-  - Model-specific configurations
-  - Optimized inference scripts
-  - Adaptive input/output handling
-- ✅ Universal module conversion:
-  - Hugging Face to Lilypad conversion
-  - Automatic file generation
-  - Model download script creation
-- ✅ Templates for model tasks:
-  - Text generation and classification
-  - Image generation and classification
-  - Audio processing (ASR, TTS, classification)
-  - Video processing (classification, generation, captioning)
-  - Specialized vision (object detection, segmentation, depth, pose)
-  - Multimodal (visual question answering, document QA)
-  - Point cloud processing (classification, segmentation)
-- ✅ Command-line interface:
-  - Model conversion
-  - Docker image building
-  - Module testing
+## Current Capabilities
 
-### In Progress
-- 🟡 Graph neural network support
-- 🟡 Time series model support
-- 🟡 Model type implementations:
-  - Pose estimation
-  - Multi-modal tasks
-  - Point cloud processing
-- 🟡 Input/output validation for each task type
-- 🟡 Error handling and progress reporting
-- 🟡 Testing framework setup and initial tests
+- Analyzes any model to detect:
+  - Input/output types
+  - Hardware requirements
+  - Dependencies
+  - Model configuration
 
-### Upcoming Tasks
-- 📝 Web interface development
-- 📝 Additional specialized task support:
-  - Point cloud processing
-  - Graph neural networks
-  - Custom model architectures
-- 📝 Automated testing and CI/CD:
-  - Unit tests for all components
-  - Integration tests for module generation
-  - Docker build testing
-  - Performance benchmarking
-- 📝 Documentation generation system:
-  - API documentation
-  - Usage guides
-  - Model compatibility matrix
-  - Best practices guide
-- 📝 Additional Features:
-  - Model fine-tuning support
-  - Custom preprocessing pipelines
-  - Batch processing support
-  - Resource usage optimization
-  - Model quantization options
+- Generates required files:
+  - Dockerfile with dependencies
+  - Inference code 
+  - Module configuration
+  - Requirements file
 
-## Installation
+## Implementation Status
 
-1. Clone the repository:
-```bash
-git clone https://github.com/yourusername/huggingface-lilypad-converter.git
-cd huggingface-lilypad-converter
-```
+✅ Done:
+- Universal model analysis framework
+- Text generation models (GPT, LLaMA)
+- Text classification (BERT, RoBERTa)
+- Token classification models
+- Question answering models
+- Summarization models (BART, T5)
+- Text-to-Image models (Stable Diffusion)
 
-2. Create a virtual environment and activate it:
-```bash
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\\Scripts\\activate
-```
-
-3. Install dependencies:
-```bash
-pip install -r requirements.txt
-```
+🏗️ In Progress:
+- Vision Models:
+  - Image classification
+  - Object detection
+  - Image segmentation
+- Audio Models:
+  - Speech recognition
+  - Audio classification
+- Video Models
+- Multimodal Models
 
 ## Usage
 
-### Command Line Interface
-
-Convert a Hugging Face model to a Lilypad module:
 ```bash
-python cli.py convert bert-base-uncased --output ./my-module
+# Install dependencies
+pip install -r requirements.txt
+
+# Convert a model
+python cli.py convert MODEL_ID --output ./modules
+
+# Run on Lilypad
+lilypad run ./modules/MODEL_NAME
 ```
 
-Build a Docker image for the module:
+## For Contributors
+
+1. Add Model Support:
+- Add architecture mappings in modules/analyzer.py
+- Add input/output processors
+- Update tests for new model types
+
+2. Track Progress:
+- Update Implementation Status section above
+- Add test cases
+- Update architecture mappings
+
+3. Code Guidelines:
+- Universal over custom solutions
+- Follow existing patterns
+- Add thorough tests
+
+## Testing
+
 ```bash
-python cli.py build ./my-module --image-name my-model:latest
+# Run tests
+pytest tests/
+
+# Test specific component
+pytest tests/test_analyzer.py
 ```
 
-Run module tests:
-```bash
-python cli.py test ./my-module
+## Project Structure
+
 ```
-
-### Web Interface
-
-1. Start the web interface:
-```bash
-python app.py
+/
+├── modules/           # Core functionality
+│   ├── analyzer.py    # Model analysis
+│   └── utils/        # Utilities
+├── templates/        # Templates
+└── tests/           # Test suite
 ```
-
-2. Open your browser and navigate to http://localhost:5000
-
-3. Enter the Hugging Face model URL (e.g., https://huggingface.co/bert-base-uncased)
-
-4. Click "Validate" to check model compatibility
-
-5. Configure model settings if needed
-
-6. Click "Generate" to create the Lilypad module
-
-7. Download and extract the generated zip file
-
-8. Follow the instructions in the generated README.md to test and deploy your module
-
-## Development
-
-To modify or extend the converter:
-
-1. Model Types: Add new model types in `modules/model_types.py`
-2. Handlers: Add input/output handlers in `modules/handlers/`
-3. Validation: Add validation rules in `modules/utils/validation.py`
-4. Configuration: Modify module configs in `modules/utils/config.py`
-5. Templates: Update templates in `templates/`
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request. Here are some ways you can help:
-
-1. Add support for new model types
-2. Create templates for specialized tasks
-3. Improve validation and error handling
-4. Enhance documentation
-5. Add examples and test cases
-6. Report bugs and suggest features
-
-## License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## Acknowledgments
-
-- [Hugging Face](https://huggingface.co) for their amazing models and APIs
-- [Lilypad Network](https://lilypad.tech) for the decentralized compute platform
-- All the open source libraries used in this project
