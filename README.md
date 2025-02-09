@@ -2,13 +2,22 @@ For AI assistants working on this project, please refer to BOT_INSTRUCTIONS.md f
 
 # Hugging Face to Lilypad Module Converter
 
-This tool helps you convert any Hugging Face model into a Lilypad module that can be run on the Lilypad network. It automatically handles:
+This tool automatically converts any Hugging Face model into a Lilypad module using a universal analysis system that:
 
-- Model validation and compatibility checking
-- Generation of Dockerfile and requirements
-- Creation of inference code
-- Configuration of Lilypad module template
-- Documentation generation
+1. Analyzes Model Properties:
+   - Input types (text, image, audio, video)
+   - Output types (text, image, audio, video, structured data)
+   - Processing requirements (generation, classification, transformation)
+   - Hardware requirements (CPU/GPU, memory)
+   - Dependencies and configurations
+
+2. Generates Required Files:
+   - Dockerfile with appropriate dependencies
+   - Inference code adapted to model type
+   - Lilypad module configuration
+   - Requirements and documentation
+
+No custom implementation needed - the system automatically adapts to any model type from Hugging Face.
 
 ## Current Status
 

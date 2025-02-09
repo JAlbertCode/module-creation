@@ -47,25 +47,84 @@ class ModelAnalyzer:
         """Load known architecture mappings"""
         # This would normally load from a YAML file
         return {
+            # Text Generation
             "gpt": {
                 "type": "text-generation",
                 "loader": "AutoModelForCausalLM",
                 "processor": "AutoTokenizer",
-                "packages": ["transformers", "torch"]
+                "packages": ["transformers", "torch"],
+                "inputs": ["text"],
+                "outputs": ["text"]
             },
             "llama": {
                 "type": "text-generation",
                 "loader": "AutoModelForCausalLM",
                 "processor": "AutoTokenizer",
-                "packages": ["transformers", "torch", "accelerate"]
+                "packages": ["transformers", "torch", "accelerate"],
+                "inputs": ["text"],
+                "outputs": ["text"]
             },
+            # Text Classification
+            "bert": {
+                "type": "text-classification",
+                "loader": "AutoModelForSequenceClassification",
+                "processor": "AutoTokenizer",
+                "packages": ["transformers", "torch"],
+                "inputs": ["text"],
+                "outputs": ["labels", "scores"]
+            },
+            "roberta": {
+                "type": "text-classification",
+                "loader": "AutoModelForSequenceClassification",
+                "processor": "AutoTokenizer",
+                "packages": ["transformers", "torch"],
+                "inputs": ["text"],
+                "outputs": ["labels", "scores"]
+            },
+            # Token Classification
+            "token-classification": {
+                "type": "token-classification",
+                "loader": "AutoModelForTokenClassification",
+                "processor": "AutoTokenizer",
+                "packages": ["transformers", "torch"],
+                "inputs": ["text"],
+                "outputs": ["tokens", "labels"]
+            },
+            # Question Answering
+            "question-answering": {
+                "type": "question-answering",
+                "loader": "AutoModelForQuestionAnswering",
+                "processor": "AutoTokenizer",
+                "packages": ["transformers", "torch"],
+                "inputs": ["question", "context"],
+                "outputs": ["answer", "score"]
+            },
+            # Summarization
+            "bart": {
+                "type": "summarization",
+                "loader": "AutoModelForSeq2SeqLM",
+                "processor": "AutoTokenizer",
+                "packages": ["transformers", "torch"],
+                "inputs": ["text"],
+                "outputs": ["summary"]
+            },
+            "t5": {
+                "type": "text2text-generation",
+                "loader": "AutoModelForSeq2SeqLM",
+                "processor": "AutoTokenizer",
+                "packages": ["transformers", "torch"],
+                "inputs": ["text"],
+                "outputs": ["text"]
+            },
+            # Image Generation
             "stable-diffusion": {
                 "type": "text-to-image",
                 "loader": "StableDiffusionPipeline",
                 "processor": None,
-                "packages": ["diffusers", "torch", "transformers"]
-            },
-            # Add more architecture mappings
+                "packages": ["diffusers", "torch", "transformers"],
+                "inputs": ["text"],
+                "outputs": ["image"]
+            }
         }
         
     def analyze_model(self, model_id: str) -> ModelAnalysis:

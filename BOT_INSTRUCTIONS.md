@@ -1,5 +1,7 @@
 # Bot Instructions
 
+IMPORTANT: This project uses a universal model conversion system that already handles all types of Hugging Face models. Do not create custom implementations for different model types - the system automatically adapts to each model's requirements.
+
 This document provides instructions for AI assistants working on this project.
 
 ## Project Status Review
